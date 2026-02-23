@@ -1,0 +1,17 @@
+[project]
+name = "shit-training"
+version = "0.1.0"
+description = "Training pipeline for the shit command correction model"
+requires-python = ">=3.10"
+dependencies = [
+    "transformers>=5.2",
+    "datasets>=4.5",
+    "torch>=2.10",
+    "thefuck>=3.32",
+    "sentencepiece>=0.2.1",
+    "accelerate>=1.12",
+    "llama-cpp-python>=0.3.16",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]

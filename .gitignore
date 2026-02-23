@@ -1,0 +1,20 @@
+# Rust build artifacts
+/target/
+/training/target/
+
+# Python
+/training/.venv/
+/training/__pycache__/
+/training/**/__pycache__/
+*.pyc
+
+# Training artifacts
+/training/checkpoints/
+/training/data/
+/training/llama.cpp/
+
+# Training model artifacts (not the shipped model)
+/training/model/
+/training/checkpoints/
+/training/data/
+.worktrees/

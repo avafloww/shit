@@ -1,0 +1,22 @@
+[package]
+name = "shit"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[[bin]]
+name = "shit"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.102"
+candle-core = "0.9.2"
+candle-transformers = "0.9.2"
+clap = { version = "4.5.60", features = ["derive"] }
+crossterm = "0.29.0"
+dirs = "6.0.0"
+serde = { version = "1.0.228", features = ["derive"] }
+sha2 = "0.10"
+tokenizers = "0.22"
+toml = "1.0.3"
+ureq = "3"
