@@ -76,6 +76,8 @@ for split in ['train', 'test']:
 "
 
 # 5. Train (5 epochs, ~45 minutes on RTX 3090)
+# NOTE: If running via a script/agent with timeouts, set timeout to at least
+# 60 minutes — training takes ~45 min on a 3090 and longer on slower GPUs.
 python3 train.py \
   --data data/train_ops.jsonl \
   --eval-data data/test_ops.jsonl \
