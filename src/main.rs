@@ -1,4 +1,6 @@
 mod config;
+#[cfg(feature = "daemon")]
+mod daemon;
 mod model;
 mod prompt;
 mod shell;
