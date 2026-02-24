@@ -17,13 +17,18 @@ $ shit
 3. A small local model suggests a fix as a structured edit operation
 4. You confirm and execute, or cancel
 
-Falls back to built-in rule-based correction if the model isn't available.
-
 ## Install
 
-### From source
-
 ```bash
+# Stable release
+cargo install shit
+
+# Development (latest main)
+cargo install --git https://github.com/avafloww/shit
+
+# Or build from source
+git clone https://github.com/avafloww/shit
+cd shit
 cargo build --release
 cp target/release/shit ~/.local/bin/
 ```

@@ -7,14 +7,19 @@ LLM-powered command correction CLI. Fine-tuned Gemma 3 270M outputs edit operati
 ## Build & Run
 
 ```bash
-# Build CLI
+# Stable release
+cargo install shit
+
+# Development (latest main)
+cargo install --git https://github.com/avafloww/shit
+
+# Or build from source
 cargo build --release
 
 # Run — model auto-downloads from GitHub Releases on first run (~253MB)
 ./target/release/shit --yes
 
 # Model cached in ~/.local/share/shit/ (Linux), ~/Library/Application Support/shit/ (macOS)
-# Falls back to rule-based inference if offline or release not found
 # For local dev: place shit.gguf + tokenizer.json next to binary to skip download
 ```
 
@@ -22,7 +27,7 @@ cargo build --release
 
 - `build.rs` — embeds `GITHUB_REPO`, `MODEL_SHA256`, `TOKENIZER_SHA256` at compile time
 - `src/main.rs` — clap arg parsing, interactive UX (crossterm)
-- `src/model/inference.rs` — GGUF inference via candle + auto-download from GitHub Releases + rule-based fallback + operation parser (apply_op)
+- `src/model/inference.rs` — GGUF inference via candle + auto-download from GitHub Releases + operation parser (apply_op)
 - `src/shell/` — per-shell init scripts (fish, bash, zsh, powershell, tcsh)
 - `src/prompt.rs` — formats `CommandContext` into `$ cmd\n> stderr\nFIX:` prompt
 - `src/config.rs` — `~/.config/shit/config.toml` handling
@@ -68,7 +73,6 @@ See [docs/releasing.md](docs/releasing.md) for the full release workflow, model 
 
 - **Edit operations over full generation** — 270M model has 256K vocab eating 170M params, only ~100M for transformer. Can't generate full commands reliably but handles REPLACE/FLAG/PREPEND perfectly.
 - **candle over llama.cpp** — pure Rust, no C++ dependency. Uses quantized_gemma3 GGUF loader.
-- **Rule-based fallback** — works without model files for basic cases (typos, sudo, directory errors).
 - **Stderr captured on demand** — shell hooks only record command + exit code. Stderr is re-captured when `shit` is invoked, avoiding complex shell redirection.
 
 ## Dependencies
