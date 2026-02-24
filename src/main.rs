@@ -13,12 +13,8 @@ struct Cli {
     command: Option<Command>,
 
     /// Auto-execute the suggested fix without confirmation
-    #[arg(short = 'y', long = "yes")]
+    #[arg(short = 'y', long = "yes", visible_alias = "hard")]
     yes: bool,
-
-    /// Alias for --yes
-    #[arg(long = "hard")]
-    hard: bool,
 
     /// Show the suggested fix without executing
     #[arg(long = "dry-run")]
@@ -43,7 +39,7 @@ fn main() -> Result<()> {
             print!("{script}");
         }
         None => {
-            let auto_execute = cli.yes || cli.hard;
+            let auto_execute = cli.yes;
             run_correction(auto_execute, cli.dry_run)?;
         }
     }
