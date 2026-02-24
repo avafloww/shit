@@ -270,3 +270,57 @@ pub fn infer_with_engine(engine: &mut Engine, prompt: &str) -> Result<Vec<String
     let op = engine.infer(prompt)?;
     Ok(infer_from_op(prompt, &op))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::apply_op;
+
+    #[test]
+    fn test_replace_op() {
+        assert_eq!(
+            apply_op("git psuh origin main", "REPLACE psuh push"),
+            Some("git push origin main".to_string())
+        );
+    }
+
+    #[test]
+    fn test_replace_missing_word() {
+        assert_eq!(apply_op("git push", "REPLACE psuh push"), None);
+    }
+
+    #[test]
+    fn test_flag_op() {
+        assert_eq!(
+            apply_op("rm myfile", "FLAG -f"),
+            Some("rm -f myfile".to_string())
+        );
+    }
+
+    #[test]
+    fn test_flag_op_no_args() {
+        assert_eq!(apply_op("ls", "FLAG -la"), Some("ls -la".to_string()));
+    }
+
+    #[test]
+    fn test_prepend_op() {
+        assert_eq!(
+            apply_op("apt install foo", "PREPEND sudo"),
+            Some("sudo apt install foo".to_string())
+        );
+    }
+
+    #[test]
+    fn test_full_op() {
+        assert_eq!(apply_op("sl", "FULL ls"), Some("ls".to_string()));
+    }
+
+    #[test]
+    fn test_none_op() {
+        assert_eq!(apply_op("git push", "NONE"), None);
+    }
+
+    #[test]
+    fn test_unknown_op() {
+        assert_eq!(apply_op("git push", "UNKNOWN something"), None);
+    }
+}
