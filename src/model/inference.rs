@@ -213,8 +213,52 @@ fn infer_from_op(prompt: &str, op: &str) -> Vec<String> {
     vec![]
 }
 
+/// Try the daemon for inference. Returns Some(fixes) on success, None on failure.
+#[cfg(feature = "daemon")]
+fn try_daemon(prompt: &str) -> Option<Vec<String>> {
+    let port_file = crate::daemon::server::port_file_path();
+    if !port_file.exists() {
+        return None; // no daemon installed, silent fallback
+    }
+
+    let port_str = std::fs::read_to_string(&port_file).ok()?;
+    let port: u16 = port_str.trim().parse().ok()?;
+
+    let url = format!("http://127.0.0.1:{}/infer", port);
+    let body = serde_json::json!({"prompt": prompt}).to_string();
+
+    let agent = ureq::Agent::new_with_defaults();
+    match agent
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .send(body.as_str())
+    {
+        Ok(response) => {
+            let text: String = response.into_body().read_to_string().ok()?;
+            let v: serde_json::Value = serde_json::from_str(&text).ok()?;
+            let fixes = v["fixes"]
+                .as_array()?
+                .iter()
+                .filter_map(|f| f.as_str().map(|s| s.to_string()))
+                .collect();
+            Some(fixes)
+        }
+        Err(_) => {
+            eprintln!("shit: daemon not responding, loading model locally...");
+            None
+        }
+    }
+}
+
 /// Run inference and return suggested fixes.
 pub fn infer(prompt: &str) -> Result<Vec<String>> {
+    // Try daemon first if feature enabled
+    #[cfg(feature = "daemon")]
+    if let Some(fixes) = try_daemon(prompt) {
+        return Ok(fixes);
+    }
+
+    // Fallback: load model locally
     let paths = find_model()?;
     let mut engine = Engine::new(&paths.model_path, &paths.tokenizer_path)?;
     let op = engine.infer(prompt)?;
