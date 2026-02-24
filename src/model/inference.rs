@@ -52,7 +52,7 @@ fn find_model() -> Result<ModelPaths> {
         GITHUB_REPO, VERSION
     );
 
-    download_file(&format!("{}/shit.gguf", base), &model_path, MODEL_SHA256)?;
+    download_file(&format!("{}/shit-ops.q4.gguf", base), &model_path, MODEL_SHA256)?;
     download_file(
         &format!("{}/tokenizer.json", base),
         &tokenizer_path,
@@ -173,22 +173,18 @@ pub fn infer(prompt: &str) -> Result<Vec<String>> {
         .find_map(|line| line.strip_prefix("$ "))
         .unwrap_or("");
 
-    match infer_model(prompt) {
-        Ok(op) => {
-            let op = op.trim();
-            if op == "NONE" || op.is_empty() {
-                return Ok(vec![]);
-            }
-            if let Some(fix) = apply_op(command, op) {
-                return Ok(vec![fix]);
-            }
-            if op.starts_with("FULL ") {
-                return Ok(vec![op[5..].to_string()]);
-            }
-            Ok(vec![])
-        }
-        Err(_) => Ok(infer_rules(prompt)),
+    let op = infer_model(prompt)?;
+    let op = op.trim();
+    if op == "NONE" || op.is_empty() {
+        return Ok(vec![]);
     }
+    if let Some(fix) = apply_op(command, op) {
+        return Ok(vec![fix]);
+    }
+    if op.starts_with("FULL ") {
+        return Ok(vec![op[5..].to_string()]);
+    }
+    Ok(vec![])
 }
 
 fn infer_model(prompt: &str) -> Result<String> {
@@ -206,8 +202,7 @@ fn generate_tokens(
 
     let logits = forward_fn(prompt_tokens, 0)?;
     let logits = logits.to_dtype(DType::F32)?;
-    let seq_len = logits.dim(0)?;
-    let mut next_logits = logits.get(seq_len - 1)?;
+    let mut next_logits = extract_last_logits(&logits)?;
     let mut next_token = logits_processor.sample(&next_logits)?;
 
     let mut generated_tokens = vec![next_token];
@@ -216,12 +211,7 @@ fn generate_tokens(
     for _ in 0..MAX_GENERATED_TOKENS {
         let logits = forward_fn(&[next_token], pos)?;
         let logits = logits.to_dtype(DType::F32)?;
-        let dims = logits.dims();
-        next_logits = if dims.len() == 2 {
-            logits.get(0)?
-        } else {
-            logits.clone()
-        };
+        next_logits = extract_last_logits(&logits)?;
         next_token = logits_processor.sample(&next_logits)?;
 
         if next_token == 1 || next_token == 0 {
@@ -244,6 +234,17 @@ fn generate_tokens(
     Ok(output)
 }
 
+/// Extract the last position's logits from a tensor of varying shape.
+/// Handles [vocab], [seq_len, vocab], etc.
+fn extract_last_logits(logits: &Tensor) -> Result<Tensor> {
+    let dims = logits.dims();
+    match dims.len() {
+        1 => Ok(logits.clone()),                        // [vocab] — single position
+        2 => Ok(logits.get(dims[0] - 1)?),              // [seq_len, vocab] — last position
+        _ => bail!("unexpected logits shape: {:?}", dims),
+    }
+}
+
 /// GGUF inference via candle quantized_gemma3.
 fn infer_gguf(prompt: &str, model_path: &PathBuf, tokenizer_path: &PathBuf) -> Result<String> {
     use candle_transformers::models::quantized_gemma3::ModelWeights;
@@ -264,67 +265,3 @@ fn infer_gguf(prompt: &str, model_path: &PathBuf, tokenizer_path: &PathBuf) -> R
     })
 }
 
-/// Rule-based fallback when model isn't available.
-fn infer_rules(prompt: &str) -> Vec<String> {
-    let mut command = "";
-    let mut stderr_lines = Vec::new();
-
-    for line in prompt.lines() {
-        if let Some(cmd) = line.strip_prefix("$ ") {
-            command = cmd;
-        } else if let Some(err) = line.strip_prefix("> ") {
-            stderr_lines.push(err);
-        }
-    }
-
-    let stderr = stderr_lines.join("\n");
-    let mut fixes = Vec::new();
-
-    if command.starts_with("git ") && stderr.contains("is not a git command") {
-        if let Some(suggestion) = extract_single_quoted_after(&stderr, "Did you mean") {
-            let parts: Vec<&str> = command.splitn(3, ' ').collect();
-            let rest = if parts.len() == 3 { parts[2] } else { "" };
-            fixes.push(format!("git {suggestion} {rest}").trim().to_string());
-        }
-    }
-    if (stderr.contains("Permission denied") || stderr.contains("Access denied"))
-        && !command.starts_with("sudo ")
-    {
-        fixes.push(format!("sudo {command}"));
-    }
-    if stderr.contains("command not found") {
-        let cmd_name = command.split_whitespace().next().unwrap_or("");
-        let rest = command.strip_prefix(cmd_name).unwrap_or("").trim();
-        let fixed = match cmd_name {
-            "gti" | "gtt" => Some("git"),
-            "sl" => Some("ls"),
-            "pytohn" | "pyhton" => Some("python"),
-            "ndoe" | "noed" => Some("node"),
-            "dcoker" | "dokcer" => Some("docker"),
-            _ => None,
-        };
-        if let Some(f) = fixed {
-            fixes.push(if rest.is_empty() {
-                f.to_string()
-            } else {
-                format!("{f} {rest}")
-            });
-        }
-    }
-    if command.starts_with("rm ") && stderr.contains("Is a directory") {
-        fixes.push(command.replacen("rm ", "rm -rf ", 1));
-    }
-    if command.starts_with("cp ") && stderr.contains("omitting directory") {
-        fixes.push(command.replacen("cp ", "cp -r ", 1));
-    }
-
-    fixes
-}
-
-fn extract_single_quoted_after(text: &str, after: &str) -> Option<String> {
-    let idx = text.find(after)?;
-    let rest = &text[idx..];
-    let start = rest.find('\'')?;
-    let end = rest[start + 1..].find('\'')?;
-    Some(rest[start + 1..start + 1 + end].to_string())
-}

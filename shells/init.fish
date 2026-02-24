@@ -24,15 +24,9 @@ function shit
     set -l last_cmd (head -1 /tmp/shit-(whoami)-last)
     set -l exit_code (sed -n '2p' /tmp/shit-(whoami)-last)
 
-    eval "$last_cmd" 2>/tmp/shit-(whoami)-stderr 1>/dev/null
-    set -l stderr_output ""
-    if test -f /tmp/shit-(whoami)-stderr
-        set stderr_output (cat /tmp/shit-(whoami)-stderr)
-        rm -f /tmp/shit-(whoami)-stderr
-    end
-
-    # Write full context with stderr
-    printf '%s\n%s\n%s' "$last_cmd" "$exit_code" "$stderr_output" > /tmp/shit-(whoami)-last
+    # Re-run to capture stderr, write context file directly to preserve newlines
+    printf '%s\n%s\n' "$last_cmd" "$exit_code" > /tmp/shit-(whoami)-last
+    eval "$last_cmd" 2>>/tmp/shit-(whoami)-last 1>/dev/null
 
     command shit $argv
 end
