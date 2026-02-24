@@ -216,6 +216,8 @@ fn infer_from_op(prompt: &str, op: &str) -> Vec<String> {
 /// Try the daemon for inference. Returns Some(fixes) on success, None on failure.
 #[cfg(feature = "daemon")]
 fn try_daemon(prompt: &str) -> Option<Vec<String>> {
+    use std::time::Duration;
+
     let port_file = crate::daemon::server::port_file_path();
     if !port_file.exists() {
         return None; // no daemon installed, silent fallback
@@ -227,7 +229,11 @@ fn try_daemon(prompt: &str) -> Option<Vec<String>> {
     let url = format!("http://127.0.0.1:{}/infer", port);
     let body = serde_json::json!({"prompt": prompt}).to_string();
 
-    let agent = ureq::Agent::new_with_defaults();
+    let agent = ureq::Agent::config_builder()
+        .timeout_connect(Some(Duration::from_secs(2)))
+        .timeout_global(Some(Duration::from_secs(30)))
+        .build()
+        .new_agent();
     match agent
         .post(&url)
         .header("Content-Type", "application/json")
