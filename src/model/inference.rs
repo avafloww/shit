@@ -45,16 +45,26 @@ fn find_model() -> Result<ModelPaths> {
         });
     }
 
-    // Download from GitHub Release assets
+    // Download from GitHub Release assets — try exact version, fall back to latest
     std::fs::create_dir_all(&dir)?;
-    let base = format!(
+    let versioned_base = format!(
         "https://github.com/{}/releases/download/v{}",
         GITHUB_REPO, VERSION
     );
+    let latest_base = format!(
+        "https://github.com/{}/releases/latest/download",
+        GITHUB_REPO
+    );
 
-    download_file(&format!("{}/shit-ops.q4.gguf", base), &model_path, MODEL_SHA256)?;
-    download_file(
-        &format!("{}/tokenizer.json", base),
+    download_file_with_fallback(
+        &format!("{}/shit-ops.q4.gguf", versioned_base),
+        &format!("{}/shit-ops.q4.gguf", latest_base),
+        &model_path,
+        MODEL_SHA256,
+    )?;
+    download_file_with_fallback(
+        &format!("{}/tokenizer.json", versioned_base),
+        &format!("{}/tokenizer.json", latest_base),
         &tokenizer_path,
         TOKENIZER_SHA256,
     )?;
@@ -66,6 +76,26 @@ fn find_model() -> Result<ModelPaths> {
         model_path,
         tokenizer_path,
     })
+}
+
+fn download_file_with_fallback(
+    url: &str,
+    fallback_url: &str,
+    dest: &PathBuf,
+    expected_sha256: &str,
+) -> Result<()> {
+    match download_file(url, dest, expected_sha256) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            // Clear the progress line from the failed attempt
+            eprint!("\r");
+            if e.to_string().contains("404") || e.to_string().contains("http status") {
+                download_file(fallback_url, dest, expected_sha256)
+            } else {
+                Err(e)
+            }
+        }
+    }
 }
 
 fn download_file(url: &str, dest: &PathBuf, expected_sha256: &str) -> Result<()> {
