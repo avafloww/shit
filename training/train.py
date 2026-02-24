@@ -49,7 +49,8 @@ def format_example(example: dict) -> str:
         stderr = example["stderr"]
         if len(stderr) > 512:
             stderr = stderr[:512] + "..."
-        parts.append(f"> {stderr}")
+        for line in stderr.splitlines():
+            parts.append(f"> {line}")
 
     if "op" in example:
         parts.append(f"OP: {example['op']}")
@@ -90,7 +91,8 @@ def tokenize_dataset(
             stderr = ex["stderr"]
             if len(stderr) > 512:
                 stderr = stderr[:512] + "..."
-            parts.append(f"> {stderr}")
+            for line in stderr.splitlines():
+                parts.append(f"> {line}")
 
         if "op" in ex:
             parts.append("OP:")

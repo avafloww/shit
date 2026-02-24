@@ -18,3 +18,5 @@
 /training/checkpoints/
 /training/data/
 .worktrees/
+.claude/worktrees/
+

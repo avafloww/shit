@@ -1461,6 +1461,63 @@ COMMAND_NOT_FOUND_SCENARIOS: list[Scenario] = [
         expected_correction="python script.py",
         category="command_not_found",
     ),
+    # --- fish shell typo suggestions ---
+    Scenario(
+        rule_name="fish_typo_exitr",
+        command="exitr",
+        output="fish: Unknown command. 'exitr' exists as a function but Fish cannot find it.\n",
+        expected_correction="exit",
+        category="command_not_found",
+    ),
+    Scenario(
+        rule_name="fish_typo_clera",
+        command="clera",
+        output="fish: Unknown command. Did you mean 'clear'?\n",
+        expected_correction="clear",
+        category="command_not_found",
+    ),
+    Scenario(
+        rule_name="fish_typo_htop",
+        command="hto",
+        output="fish: Unknown command. Did you mean 'htop'?\n",
+        expected_correction="htop",
+        category="command_not_found",
+    ),
+    Scenario(
+        rule_name="fish_typo_javac",
+        command="javacv",
+        output="fish: Unknown command. Did you mean 'javac'?\n",
+        expected_correction="javac",
+        category="command_not_found",
+    ),
+    Scenario(
+        rule_name="fish_typo_javac",
+        command="javca",
+        output="fish: Unknown command. Did you mean 'javac'?\n",
+        expected_correction="javac",
+        category="command_not_found",
+    ),
+    Scenario(
+        rule_name="fish_typo_cargo",
+        command="carg build",
+        output="fish: Unknown command. Did you mean 'cargo'?\n",
+        expected_correction="cargo build",
+        category="command_not_found",
+    ),
+    Scenario(
+        rule_name="fish_typo_systemctl",
+        command="systemclt status sshd",
+        output="fish: Unknown command. Did you mean 'systemctl'?\n",
+        expected_correction="systemctl status sshd",
+        category="command_not_found",
+    ),
+    Scenario(
+        rule_name="fish_typo_fastfetch",
+        command="fasfetch",
+        output="fish: Unknown command. Did you mean 'fastfetch'?\n",
+        expected_correction="fastfetch",
+        category="command_not_found",
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -1629,6 +1686,109 @@ PERMISSION_SCENARIOS: list[Scenario] = [
             "    install.\n"
         ),
         expected_correction="pip install --break-system-packages requests",
+        category="permissions",
+    ),
+    # --- pacman without sudo (various operations) ---
+    Scenario(
+        rule_name="pacman_permission",
+        command="pacman -S git",
+        output="error: you cannot perform this operation unless you are root.\n",
+        expected_correction="sudo pacman -S git",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="pacman_permission",
+        command="pacman -S openssh",
+        output="error: you cannot perform this operation unless you are root.\n",
+        expected_correction="sudo pacman -S openssh",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="pacman_permission",
+        command="pacman -S discord",
+        output="error: you cannot perform this operation unless you are root.\n",
+        expected_correction="sudo pacman -S discord",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="pacman_permission",
+        command="pacman -Rns firefox",
+        output="error: you cannot perform this operation unless you are root.\n",
+        expected_correction="sudo pacman -Rns firefox",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="pacman_permission",
+        command="pacman -S pavucontrol",
+        output="error: you cannot perform this operation unless you are root.\n",
+        expected_correction="sudo pacman -S pavucontrol",
+        category="permissions",
+    ),
+    # --- system admin tools without sudo ---
+    Scenario(
+        rule_name="mkinitcpio_permission",
+        command="mkinitcpio -P",
+        output="==> ERROR: You must be root to run this program.\n",
+        expected_correction="sudo mkinitcpio -P",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="mkinitcpio_permission",
+        command="mkinitcpio -p linux",
+        output="==> ERROR: You must be root to run this program.\n",
+        expected_correction="sudo mkinitcpio -p linux",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="sbctl_permission",
+        command="sbctl enroll-keys --microsoft",
+        output="sbctl requires root to run\n",
+        expected_correction="sudo sbctl enroll-keys --microsoft",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="sbctl_permission",
+        command="sbctl create-keys",
+        output="sbctl requires root to run\n",
+        expected_correction="sudo sbctl create-keys",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="sbctl_permission",
+        command="sbctl status",
+        output="sbctl requires root to run\n",
+        expected_correction="sudo sbctl status",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="snapper_permission",
+        command="snapper -c root create-config /",
+        output="IO Error (permission denied).\n",
+        expected_correction="sudo snapper -c root create-config /",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="snapper_permission",
+        command="snapper create --description backup",
+        output="IO Error (permission denied).\n",
+        expected_correction="sudo snapper create --description backup",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="btrfs_permission",
+        command="btrfs subvolume list /",
+        output=(
+            "ERROR: can't perform the search - Operation not permitted\n"
+            "ERROR: can't list subvolumes: Operation not permitted\n"
+        ),
+        expected_correction="sudo btrfs subvolume list /",
+        category="permissions",
+    ),
+    Scenario(
+        rule_name="grub_permission",
+        command="grub-mkconfig -o /boot/grub/grub.cfg",
+        output="grub-mkconfig: You must run this as root\n",
+        expected_correction="sudo grub-mkconfig -o /boot/grub/grub.cfg",
         category="permissions",
     ),
 ]
@@ -1801,7 +1961,7 @@ RUNTIME_SCENARIOS: list[Scenario] = [
             "    ^^^^^^^^^^^^^^\n"
             "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)?\n"
         ),
-        expected_correction="python3 script.py",
+        expected_correction="?",
         category="runtime",
     ),
     Scenario(
@@ -2057,6 +2217,107 @@ GENERAL_SCENARIOS: list[Scenario] = [
             "hint: If you want to install packages system-wide, use pipx.\n"
         ),
         expected_correction="python -m venv .venv && source .venv/bin/activate && pip install requests",
+        category="general",
+    ),
+    # --- double sudo ---
+    Scenario(
+        rule_name="double_sudo",
+        command="sudo sudo reboot",
+        output="sudo: sudo: command not found\n",
+        expected_correction="sudo reboot",
+        category="general",
+    ),
+    Scenario(
+        rule_name="double_sudo",
+        command="sudo sudo pacman -Syu",
+        output="sudo: sudo: command not found\n",
+        expected_correction="sudo pacman -Syu",
+        category="general",
+    ),
+    Scenario(
+        rule_name="double_sudo",
+        command="sudo sudo systemctl restart nginx",
+        output="sudo: sudo: command not found\n",
+        expected_correction="sudo systemctl restart nginx",
+        category="general",
+    ),
+    Scenario(
+        rule_name="double_sudo",
+        command="sudo sudo mount /dev/sda1 /mnt",
+        output="sudo: sudo: command not found\n",
+        expected_correction="sudo mount /dev/sda1 /mnt",
+        category="general",
+    ),
+    # --- wrong package names (distro confusion) ---
+    Scenario(
+        rule_name="pacman_wrong_pkg_name",
+        command="sudo pacman -S openssh-server",
+        output="error: target not found: openssh-server\n",
+        expected_correction="sudo pacman -S openssh",
+        category="general",
+    ),
+    Scenario(
+        rule_name="pacman_wrong_pkg_name",
+        command="sudo pacman -S sshd",
+        output="error: target not found: sshd\n",
+        expected_correction="sudo pacman -S openssh",
+        category="general",
+    ),
+    Scenario(
+        rule_name="pacman_wrong_pkg_name",
+        command="sudo pacman -S python3",
+        output="error: target not found: python3\n",
+        expected_correction="sudo pacman -S python",
+        category="general",
+    ),
+    Scenario(
+        rule_name="pacman_wrong_pkg_name",
+        command="sudo pacman -S python3-pip",
+        output="error: target not found: python3-pip\n",
+        expected_correction="sudo pacman -S python-pip",
+        category="general",
+    ),
+    Scenario(
+        rule_name="pacman_wrong_pkg_name",
+        command="sudo pacman -S libssl-dev",
+        output="error: target not found: libssl-dev\n",
+        expected_correction="sudo pacman -S openssl",
+        category="general",
+    ),
+    Scenario(
+        rule_name="pacman_wrong_pkg_name",
+        command="sudo pacman -S build-essential",
+        output="error: target not found: build-essential\n",
+        expected_correction="sudo pacman -S base-devel",
+        category="general",
+    ),
+    # --- pacman package name typos ---
+    Scenario(
+        rule_name="pacman_pkg_typo",
+        command="yay -Rns c-area",
+        output="error: target not found: c-area\n",
+        expected_correction="yay -Rns c-ares",
+        category="general",
+    ),
+    Scenario(
+        rule_name="pacman_pkg_typo",
+        command="sudo pacman -S fierfox",
+        output="error: target not found: fierfox\n",
+        expected_correction="sudo pacman -S firefox",
+        category="general",
+    ),
+    Scenario(
+        rule_name="pacman_pkg_typo",
+        command="sudo pacman -S libreofice",
+        output="error: target not found: libreofice\n",
+        expected_correction="sudo pacman -S libreoffice-fresh",
+        category="general",
+    ),
+    Scenario(
+        rule_name="pacman_pkg_typo",
+        command="sudo pacman -S htpo",
+        output="error: target not found: htpo\n",
+        expected_correction="sudo pacman -S htop",
         category="general",
     ),
 ]

@@ -25,15 +25,23 @@ cargo build --release
 
 ## Architecture
 
+### Rust CLI (`src/`)
 - `build.rs` — embeds `GITHUB_REPO`, `MODEL_SHA256`, `TOKENIZER_SHA256` at compile time
 - `src/main.rs` — clap arg parsing, interactive UX (crossterm)
-- `src/model/inference.rs` — GGUF inference via candle + auto-download from GitHub Releases + operation parser (apply_op)
+- `src/model/inference.rs` — GGUF inference via candle + auto-download from GitHub Releases + operation parser (`apply_op`)
 - `src/shell/` — per-shell init scripts (fish, bash, zsh, powershell, tcsh)
-- `src/prompt.rs` — formats `CommandContext` into `$ cmd\n> stderr\nFIX:` prompt
+- `src/prompt.rs` — formats `CommandContext` into `$ cmd\n> stderr\nOP:` prompt
 - `src/config.rs` — `~/.config/shit/config.toml` handling
 - `shells/` — shell init script templates (included via `include_str!`)
 - `model/` — SHA256 checksum files for model assets (actual files distributed via GitHub Releases)
-- `training/` — Python pipeline (generate_data.py → augment.py → train.py → export.py)
+
+### Training pipeline (`training/`)
+- `training/generate_data.py` — curated scenarios (Scenario dataclass) → `data/base_examples.jsonl`
+- `training/augment.py` — template-based augmentation (swap branches, packages, paths, etc.) → `data/augmented.jsonl`
+- `docs/training.md` step 3 — inline shuffle + train/test split → `data/{train,test}.jsonl`
+- `docs/training.md` step 4 — inline `command_to_op()` converts full corrections to edit ops → `data/{train,test}_ops.jsonl`
+- `training/train.py` — fine-tunes Gemma 3 270M on `_ops.jsonl` data (uses `OP:` format)
+- `training/export.py` — converts HF checkpoint → GGUF bf16 → Q4_K_M via llama.cpp
 
 ## Model Format
 
