@@ -8,7 +8,7 @@ __shit_preexec() {
 
 __shit_postexec() {
     local last_status=$?
-    if [ $last_status -ne 0 ] && [ -n "$__shit_last_command" ]; then
+    if [ $last_status -ne 0 ] && [ -n "$__shit_last_command" ] && [[ "$__shit_last_command" != shit* ]]; then
         printf '%s\n%s\n' "$__shit_last_command" "$last_status" > "/tmp/shit-$(whoami)-last"
     fi
     __shit_last_command=""

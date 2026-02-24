@@ -8,7 +8,7 @@ end
 
 function __shit_postexec --on-event fish_postexec
     set -l last_status $status
-    if test $last_status -ne 0
+    if test $last_status -ne 0; and not string match -q 'shit *' -- "$__shit_last_command"; and test "$__shit_last_command" != "shit"
         printf '%s\n%s\n' "$__shit_last_command" "$last_status" > /tmp/shit-(whoami)-last
     end
 end

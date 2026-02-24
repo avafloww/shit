@@ -10,7 +10,7 @@ function prompt {
     $lastExit = $LASTEXITCODE
     $lastCmd = (Get-History -Count 1).CommandLine
 
-    if ($lastExit -ne 0 -and $null -ne $lastCmd) {
+    if ($lastExit -ne 0 -and $null -ne $lastCmd -and -not $lastCmd.StartsWith("shit")) {
         $stderrOutput = ""
         if (Test-Path $global:__shit_stderr_file) {
             $stderrOutput = Get-Content $global:__shit_stderr_file -Raw
