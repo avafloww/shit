@@ -7,7 +7,7 @@ This script creates (command, error_output, correction) triples by:
 3. Falling back to the curated correction if the rule can't be invoked dynamically
 
 Output: JSONL with {"command": "...", "stderr": "...", "correction": "..."} per line.
-Negative examples (unfixable commands) have correction = "?".
+Negative examples (unfixable commands) have expected_correction = None (serialized as "?" in JSONL).
 """
 
 import argparse
@@ -25,7 +25,7 @@ class Scenario:
     rule_name: str
     command: str
     output: str
-    expected_correction: str
+    expected_correction: str | None = None
     category: str = "general"
 
 
@@ -103,7 +103,7 @@ GIT_SCENARIOS: list[Scenario] = [
             "Please make sure you have the correct access rights\n"
             "and the repository exists.\n"
         ),
-        expected_correction="?",
+
         category="git",
     ),
     # --- checkout / switch errors ---
@@ -201,7 +201,7 @@ GIT_SCENARIOS: list[Scenario] = [
         rule_name="git_branch_not_found",
         command="git branch -d nonexistent-branch",
         output="error: branch 'nonexistent-branch' not found.\n",
-        expected_correction="?",
+
         category="git",
     ),
     # --- commit errors ---
@@ -280,7 +280,7 @@ GIT_SCENARIOS: list[Scenario] = [
         rule_name="git_stash_empty",
         command="git stash pop",
         output="error: No stash entries found.\n",
-        expected_correction="?",
+
         category="git",
     ),
     Scenario(
@@ -361,7 +361,7 @@ GIT_SCENARIOS: list[Scenario] = [
         rule_name="git_merge_already",
         command="git merge feature-done",
         output="Already up to date.\n",
-        expected_correction="?",
+
         category="git",
     ),
     # --- rebase errors ---
@@ -381,7 +381,7 @@ GIT_SCENARIOS: list[Scenario] = [
         rule_name="git_rebase_already",
         command="git rebase origin/main",
         output="Current branch main is up to date.\n",
-        expected_correction="?",
+
         category="git",
     ),
     # --- remote errors ---
@@ -396,7 +396,7 @@ GIT_SCENARIOS: list[Scenario] = [
         rule_name="git_remote_not_found",
         command="git remote remove upstream",
         output="fatal: No such remote: 'upstream'\n",
-        expected_correction="?",
+
         category="git",
     ),
     # --- clone errors ---
@@ -409,7 +409,7 @@ GIT_SCENARIOS: list[Scenario] = [
             "Please make sure you have the correct access rights\n"
             "and the repository exists.\n"
         ),
-        expected_correction="?",
+
         category="git",
     ),
     Scenario(
@@ -657,7 +657,7 @@ PACKAGE_MANAGER_SCENARIOS: list[Scenario] = [
             "ERROR: Could not find a version that satisfies the requirement nonexistent-package-xyz\n"
             "ERROR: No matching distribution found for nonexistent-package-xyz\n"
         ),
-        expected_correction="?",
+
         category="package_manager",
     ),
     Scenario(
@@ -784,7 +784,7 @@ PACKAGE_MANAGER_SCENARIOS: list[Scenario] = [
             "npm error 404 Not Found - GET https://registry.npmjs.org/nonexistent-pkg-xyz\n"
             "npm error 404 'nonexistent-pkg-xyz@latest' is not in this registry.\n"
         ),
-        expected_correction="?",
+
         category="package_manager",
     ),
     Scenario(
@@ -833,7 +833,7 @@ PACKAGE_MANAGER_SCENARIOS: list[Scenario] = [
         output=(
             "error An unexpected error occurred: \"https://registry.yarnpkg.com/nonexistent-package-xyz: Not found\"\n"
         ),
-        expected_correction="?",
+
         category="package_manager",
     ),
     Scenario(
@@ -853,7 +853,7 @@ PACKAGE_MANAGER_SCENARIOS: list[Scenario] = [
             "error Command 'deploy' not found.\n"
             "info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.\n"
         ),
-        expected_correction="?",
+
         category="package_manager",
     ),
     # --- cargo ---
@@ -883,7 +883,7 @@ PACKAGE_MANAGER_SCENARIOS: list[Scenario] = [
         output=(
             "error: could not find crate `nonexistent-crate-xyz` on crates.io\n"
         ),
-        expected_correction="?",
+
         category="package_manager",
     ),
     Scenario(
@@ -893,7 +893,7 @@ PACKAGE_MANAGER_SCENARIOS: list[Scenario] = [
             "error[E0635]: unknown feature `nonexistent-feature`\n"
             "  --> Cargo.toml:5:1\n"
         ),
-        expected_correction="?",
+
         category="package_manager",
     ),
     # --- apt/apt-get ---
@@ -1035,7 +1035,7 @@ FILE_SCENARIOS: list[Scenario] = [
         rule_name="rm_no_file",
         command="rm nonexistent.txt",
         output="rm: cannot remove 'nonexistent.txt': No such file or directory\n",
-        expected_correction="?",
+
         category="file_ops",
     ),
     # --- cp ---
@@ -1064,7 +1064,7 @@ FILE_SCENARIOS: list[Scenario] = [
         rule_name="cp_no_file",
         command="cp nonexistent.txt dest.txt",
         output="cp: cannot stat 'nonexistent.txt': No such file or directory\n",
-        expected_correction="?",
+
         category="file_ops",
     ),
     # --- mv ---
@@ -1086,7 +1086,7 @@ FILE_SCENARIOS: list[Scenario] = [
         rule_name="mv_no_file",
         command="mv nonexistent.txt newname.txt",
         output="mv: cannot stat 'nonexistent.txt': No such file or directory\n",
-        expected_correction="?",
+
         category="file_ops",
     ),
     # --- mkdir ---
@@ -1094,7 +1094,7 @@ FILE_SCENARIOS: list[Scenario] = [
         rule_name="mkdir_exists",
         command="mkdir mydir",
         output="mkdir: cannot create directory 'mydir': File exists\n",
-        expected_correction="?",
+
         category="file_ops",
     ),
     Scenario(
@@ -1166,7 +1166,7 @@ FILE_SCENARIOS: list[Scenario] = [
         rule_name="cat_no_file",
         command="cat nonexistent.txt",
         output="cat: nonexistent.txt: No such file or directory\n",
-        expected_correction="?",
+
         category="file_ops",
     ),
     # --- ln ---
@@ -1181,7 +1181,7 @@ FILE_SCENARIOS: list[Scenario] = [
         rule_name="ln_no_src",
         command="ln -s nonexistent.txt link.txt",
         output="ln: failed to create symbolic link 'link.txt': No such file or directory\n",
-        expected_correction="?",
+
         category="file_ops",
     ),
     # --- cd ---
@@ -1203,7 +1203,7 @@ FILE_SCENARIOS: list[Scenario] = [
         rule_name="cd_not_dir",
         command="cd myfile.txt",
         output="bash: cd: myfile.txt: Not a directory\n",
-        expected_correction="?",
+
         category="file_ops",
     ),
 ]
@@ -1843,28 +1843,28 @@ NETWORK_SCENARIOS: list[Scenario] = [
         rule_name="connection_refused",
         command="curl http://localhost:8080/api",
         output="curl: (7) Failed to connect to localhost port 8080 after 0 ms: Connection refused\n",
-        expected_correction="?",
+
         category="network",
     ),
     Scenario(
         rule_name="dns_failed",
         command="curl https://nonexistent-domain-xyz.example.com",
         output="curl: (6) Could not resolve host: nonexistent-domain-xyz.example.com\n",
-        expected_correction="?",
+
         category="network",
     ),
     Scenario(
         rule_name="ssh_connection_refused",
         command="ssh user@192.168.1.100",
         output="ssh: connect to host 192.168.1.100 port 22: Connection refused\n",
-        expected_correction="?",
+
         category="network",
     ),
     Scenario(
         rule_name="ssh_timeout",
         command="ssh user@10.0.0.5",
         output="ssh: connect to host 10.0.0.5 port 22: Connection timed out\n",
-        expected_correction="?",
+
         category="network",
     ),
     Scenario(
@@ -1930,7 +1930,7 @@ RUNTIME_SCENARIOS: list[Scenario] = [
             "           ^\n"
             "SyntaxError: '(' was never closed\n"
         ),
-        expected_correction="?",
+
         category="runtime",
     ),
     Scenario(
@@ -1942,14 +1942,14 @@ RUNTIME_SCENARIOS: list[Scenario] = [
             "         ^\n"
             "SyntaxError: invalid syntax. Did you mean '=='?\n"
         ),
-        expected_correction="?",
+
         category="runtime",
     ),
     Scenario(
         rule_name="python_file_not_found",
         command="python nonexistent.py",
         output="python: can't open file '/home/user/nonexistent.py': [Errno 2] No such file or directory\n",
-        expected_correction="?",
+
         category="runtime",
     ),
     Scenario(
@@ -1961,7 +1961,6 @@ RUNTIME_SCENARIOS: list[Scenario] = [
             "    ^^^^^^^^^^^^^^\n"
             "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)?\n"
         ),
-        expected_correction="?",
         category="runtime",
     ),
     Scenario(
@@ -2012,7 +2011,7 @@ RUNTIME_SCENARIOS: list[Scenario] = [
             "Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'stream/promises'\n"
             "Node version requirement: >=16.0.0\n"
         ),
-        expected_correction="?",
+
         category="runtime",
     ),
     Scenario(
@@ -2023,7 +2022,7 @@ RUNTIME_SCENARIOS: list[Scenario] = [
             "\n"
             "Found 1 error.\n"
         ),
-        expected_correction="?",
+
         category="runtime",
     ),
     Scenario(
@@ -2037,7 +2036,7 @@ RUNTIME_SCENARIOS: list[Scenario] = [
             "    from main import app\n"
             "ImportError: cannot import name 'app' from partially initialized module 'main'\n"
         ),
-        expected_correction="?",
+
         category="runtime",
     ),
 ]
@@ -2058,7 +2057,7 @@ GENERAL_SCENARIOS: list[Scenario] = [
         rule_name="grep_no_match",
         command="grep -r 'nonexistentstring12345' src/",
         output="",
-        expected_correction="?",
+
         category="general",
     ),
     Scenario(
@@ -2086,7 +2085,7 @@ GENERAL_SCENARIOS: list[Scenario] = [
         rule_name="make_no_makefile",
         command="make build",
         output="make: *** No targets specified and no makefile found.  Stop.\n",
-        expected_correction="?",
+
         category="general",
     ),
     Scenario(
@@ -2132,7 +2131,7 @@ GENERAL_SCENARIOS: list[Scenario] = [
         rule_name="kill_no_pid",
         command="kill 99999",
         output="bash: kill: (99999) - No such process\n",
-        expected_correction="?",
+
         category="general",
     ),
     Scenario(
@@ -2184,14 +2183,14 @@ GENERAL_SCENARIOS: list[Scenario] = [
         rule_name="curl_post_json",
         command="curl -X POST http://localhost:8080/api -d '{\"key\": \"value\"}'",
         output="curl: (3) URL rejected: Port number was not a decimal number between 0 and 65535\n",
-        expected_correction="?",
+
         category="general",
     ),
     Scenario(
         rule_name="jq_invalid",
         command="jq .name data.json",
         output="parse error (Invalid numeric literal at EOF on line 1, column 5): (null)\n",
-        expected_correction="?",
+
         category="general",
     ),
     Scenario(
@@ -2205,7 +2204,7 @@ GENERAL_SCENARIOS: list[Scenario] = [
         rule_name="disk_full",
         command="cp large_file.iso /tmp/",
         output="cp: error writing '/tmp/large_file.iso': No space left on device\n",
-        expected_correction="?",
+
         category="general",
     ),
     Scenario(
@@ -2345,7 +2344,7 @@ DOCKER_SCENARIOS: list[Scenario] = [
             "docker: Error response from daemon: pull access denied for nonexistent-image, "
             "repository does not exist or may require 'docker login'\n"
         ),
-        expected_correction="?",
+
         category="docker",
     ),
     Scenario(
@@ -2362,7 +2361,7 @@ DOCKER_SCENARIOS: list[Scenario] = [
         rule_name="docker_container_not_found",
         command="docker exec -it mycontainer bash",
         output="Error response from daemon: No such container: mycontainer\n",
-        expected_correction="?",
+
         category="docker",
     ),
     Scenario(
@@ -2388,7 +2387,7 @@ DOCKER_SCENARIOS: list[Scenario] = [
             'Consider using the `-f` flag to specify a configuration file or the\n'
             '`--project-directory` flag to specify a root search path.\n'
         ),
-        expected_correction="?",
+
         category="docker",
     ),
     Scenario(
@@ -2397,7 +2396,7 @@ DOCKER_SCENARIOS: list[Scenario] = [
         output=(
             "ERROR: failed to solve: failed to read dockerfile: open Dockerfile: no such file or directory\n"
         ),
-        expected_correction="?",
+
         category="docker",
     ),
     Scenario(
@@ -2431,7 +2430,7 @@ KUBERNETES_SCENARIOS: list[Scenario] = [
             "error: the server doesn't have a resource type 'pods'\n"
             "The connection to the server localhost:8080 was refused - did you specify the right host or port?\n"
         ),
-        expected_correction="?",
+
         category="kubernetes",
     ),
     Scenario(
@@ -2448,7 +2447,7 @@ KUBERNETES_SCENARIOS: list[Scenario] = [
             "error: error parsing deployment.yml: error converting YAML to JSON: "
             "yaml: line 5: mapping values are not allowed in this context\n"
         ),
-        expected_correction="?",
+
         category="kubernetes",
     ),
     Scenario(
@@ -2486,112 +2485,112 @@ NEGATIVE_SCENARIOS: list[Scenario] = [
         rule_name="negative",
         command="asdfghjkl",
         output="bash: asdfghjkl: command not found\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="xyzzy --foo --bar",
         output="bash: xyzzy: command not found\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="echo hello",
         output="hello\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="ls",
         output="file1.txt  file2.txt  src/\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="qqq rrr sss ttt",
         output="bash: qqq: command not found\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="./nonexistent_binary --help",
         output="bash: ./nonexistent_binary: No such file or directory\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="cat",
         output="",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="true",
         output="",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="aaa bbb ccc ddd eee",
         output="bash: aaa: command not found\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="zzznotacommand --version",
         output="bash: zzznotacommand: command not found\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="git push --force origin main",
         output="Everything up-to-date\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="pwd",
         output="/home/user/projects\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="date",
         output="Mon Jan  1 00:00:00 UTC 2024\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="whoami",
         output="user\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="flibbertigibbet --config foo.yaml run",
         output="bash: flibbertigibbet: command not found\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="python script.py",
         output="Traceback (most recent call last):\n  File 'script.py', line 42, in main\n    result = compute(x, y)\nValueError: math domain error\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
@@ -2603,7 +2602,7 @@ NEGATIVE_SCENARIOS: list[Scenario] = [
             "Date:   Mon Jan  1 00:00:00 2024 +0000\n\n"
             "    initial commit\n"
         ),
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
@@ -2612,14 +2611,14 @@ NEGATIVE_SCENARIOS: list[Scenario] = [
         output=(
             "CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES\n"
         ),
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
         rule_name="negative",
         command="kubectl get pods",
         output="No resources found in default namespace.\n",
-        expected_correction="?",
+
         category="negative",
     ),
     Scenario(
@@ -2629,7 +2628,7 @@ NEGATIVE_SCENARIOS: list[Scenario] = [
             "added 1234 packages, and audited 1235 packages in 30s\n"
             "found 0 vulnerabilities\n"
         ),
-        expected_correction="?",
+
         category="negative",
     ),
 ]
@@ -2685,10 +2684,10 @@ def generate_examples(use_thefuck: bool = True) -> list[dict]:
     """
     examples = []
 
-    for scenario in SCENARIOS:
+    for scenario in SCENARIOS + NEGATIVE_SCENARIOS:
         correction = scenario.expected_correction
 
-        if use_thefuck:
+        if use_thefuck and correction is not None:
             dynamic = try_thefuck_rule(
                 scenario.rule_name, scenario.command, scenario.output
             )
@@ -2699,17 +2698,7 @@ def generate_examples(use_thefuck: bool = True) -> list[dict]:
             {
                 "command": scenario.command,
                 "stderr": scenario.output.strip(),
-                "correction": correction,
-            }
-        )
-
-    # Add negative examples
-    for scenario in NEGATIVE_SCENARIOS:
-        examples.append(
-            {
-                "command": scenario.command,
-                "stderr": scenario.output.strip(),
-                "correction": "?",
+                "correction": correction if correction is not None else "?",
             }
         )
 

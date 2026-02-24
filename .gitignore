@@ -9,6 +9,7 @@
 *.pyc
 
 # Training artifacts
+/data/
 /training/checkpoints/
 /training/data/
 /training/llama.cpp/

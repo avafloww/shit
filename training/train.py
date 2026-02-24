@@ -6,12 +6,12 @@ the HuggingFace Trainer API. This is a full fine-tune (not LoRA) since the
 model is small enough at 270M parameters.
 
 Training data format (per line in JSONL):
-    {"command": "...", "stderr": "...", "correction": "..."}
+    {"command": "...", "stderr": "...", "op": "..."}
 
 Model input format:
     $ {command}
     > {stderr}
-    FIX: {correction}
+    OP: {op}
 """
 
 import argparse
@@ -31,18 +31,10 @@ from transformers import (
 def format_example(example: dict) -> str:
     """Format a training example into the prompt format the model will learn.
 
-    If the example has an 'op' field (edit operation format), use that.
-    Otherwise fall back to full correction format.
-
-    Operation format:
+    Format:
         $ {command}
         > {stderr}
         OP: REPLACE old new
-
-    Legacy format:
-        $ {command}
-        > {stderr}
-        FIX: {correction}
     """
     parts = [f"$ {example['command']}"]
     if example.get("stderr"):
@@ -52,10 +44,7 @@ def format_example(example: dict) -> str:
         for line in stderr.splitlines():
             parts.append(f"> {line}")
 
-    if "op" in example:
-        parts.append(f"OP: {example['op']}")
-    else:
-        parts.append(f"FIX: {example['correction']}")
+    parts.append(f"OP: {example['op']}")
 
     return "\n".join(parts)
 
@@ -78,7 +67,7 @@ def tokenize_dataset(
 
     Each example is formatted into the prompt format and tokenized.
     Labels are masked (-100) for the prompt portion so the model only learns
-    to predict the correction after 'FIX: ', not the prompt itself.
+    to predict the operation after 'OP: ', not the prompt itself.
     """
     all_input_ids = []
     all_attention_mask = []
@@ -94,12 +83,8 @@ def tokenize_dataset(
             for line in stderr.splitlines():
                 parts.append(f"> {line}")
 
-        if "op" in ex:
-            parts.append("OP:")
-            completion_text = " " + ex["op"] + "\n"
-        else:
-            parts.append("FIX:")
-            completion_text = " " + ex["correction"] + "\n"
+        parts.append("OP:")
+        completion_text = " " + ex["op"] + "\n"
 
         prompt_text = "\n".join(parts)
 
@@ -148,14 +133,14 @@ def main():
         "-d",
         "--data",
         type=Path,
-        default=Path("data/train.jsonl"),
-        help="Training data JSONL file (default: data/train.jsonl)",
+        default=Path("data/train_ops.jsonl"),
+        help="Training data JSONL file (default: data/train_ops.jsonl)",
     )
     parser.add_argument(
         "--eval-data",
         type=Path,
-        default=Path("data/test.jsonl"),
-        help="Evaluation data JSONL file (default: data/test.jsonl)",
+        default=Path("data/test_ops.jsonl"),
+        help="Evaluation data JSONL file (default: data/test_ops.jsonl)",
     )
     parser.add_argument(
         "-o",
