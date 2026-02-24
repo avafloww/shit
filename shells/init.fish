@@ -14,17 +14,22 @@ function __shit_postexec --on-event fish_postexec
 end
 
 function shit
-    # If no context file exists, bail
+    # Pass through subcommands (init, help, etc.) directly to the binary
+    if set -q argv[1]; and string match -qr '^[a-z]' -- $argv[1]
+        command shit $argv
+        return $status
+    end
+
+    # Correction mode — re-run last failed command to capture stderr
     if not test -f /tmp/shit-(whoami)-last
         echo "shit: no failed command to fix"
         return 1
     end
 
-    # Read the last failed command and re-run to capture stderr
     set -l last_cmd (head -1 /tmp/shit-(whoami)-last)
     set -l exit_code (sed -n '2p' /tmp/shit-(whoami)-last)
 
-    # Re-run to capture stderr, write context file directly to preserve newlines
+    # Write context file directly to preserve newlines in stderr
     printf '%s\n%s\n' "$last_cmd" "$exit_code" > /tmp/shit-(whoami)-last
     eval "$last_cmd" 2>>/tmp/shit-(whoami)-last 1>/dev/null
 

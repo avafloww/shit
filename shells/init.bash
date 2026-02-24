@@ -25,23 +25,27 @@ else
 fi
 
 shit() {
+    # Pass through subcommands (init, help, etc.) directly to the binary
+    if [[ -n "$1" && "$1" =~ ^[a-z] ]]; then
+        command shit "$@"
+        return $?
+    fi
+
+    # Correction mode — re-run last failed command to capture stderr
     local context_file="/tmp/shit-$(whoami)-last"
     if [ ! -f "$context_file" ]; then
         echo "shit: no failed command to fix"
         return 1
     fi
 
-    # Read last failed command and re-run to capture stderr
     local last_cmd
     last_cmd=$(head -1 "$context_file")
     local exit_code
     exit_code=$(sed -n '2p' "$context_file")
 
-    local stderr_output
-    stderr_output=$("$SHELL" -c "$last_cmd" 2>&1 1>/dev/null)
-
-    # Write full context with stderr
-    printf '%s\n%s\n%s' "$last_cmd" "$exit_code" "$stderr_output" > "$context_file"
+    # Write context file, append stderr directly to preserve newlines
+    printf '%s\n%s\n' "$last_cmd" "$exit_code" > "$context_file"
+    "$SHELL" -c "$last_cmd" 2>>"$context_file" 1>/dev/null
 
     command shit "$@"
 }
