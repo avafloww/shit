@@ -1,21 +1,19 @@
 use anyhow::{bail, Result};
-use candle_core::{DType, Device, Tensor};
-use candle_transformers::generation::LogitsProcessor;
 use std::path::PathBuf;
-use tokenizers::Tokenizer;
 
-const MAX_GENERATED_TOKENS: usize = 30;
+use super::engine::Engine;
+
 const GITHUB_REPO: &str = env!("GITHUB_REPO");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const MODEL_SHA256: &str = env!("MODEL_SHA256");
 const TOKENIZER_SHA256: &str = env!("TOKENIZER_SHA256");
 
-struct ModelPaths {
-    model_path: PathBuf,
-    tokenizer_path: PathBuf,
+pub struct ModelPaths {
+    pub model_path: PathBuf,
+    pub tokenizer_path: PathBuf,
 }
 
-fn find_model() -> Result<ModelPaths> {
+pub fn find_model() -> Result<ModelPaths> {
     // 1. Check next to binary (local dev override)
     if let Ok(exe) = std::env::current_exe() {
         let dir = exe.parent().unwrap();
@@ -196,102 +194,35 @@ fn apply_op(command: &str, op: &str) -> Option<String> {
     }
 }
 
-/// Run inference and return suggested fixes.
-pub fn infer(prompt: &str) -> Result<Vec<String>> {
+fn infer_from_op(prompt: &str, op: &str) -> Vec<String> {
     let command = prompt
         .lines()
         .find_map(|line| line.strip_prefix("$ "))
         .unwrap_or("");
 
-    let op = infer_model(prompt)?;
     let op = op.trim();
     if op == "NONE" || op.is_empty() {
-        return Ok(vec![]);
+        return vec![];
     }
     if let Some(fix) = apply_op(command, op) {
-        return Ok(vec![fix]);
+        return vec![fix];
     }
     if op.starts_with("FULL ") {
-        return Ok(vec![op[5..].to_string()]);
+        return vec![op[5..].to_string()];
     }
-    Ok(vec![])
+    vec![]
 }
 
-fn infer_model(prompt: &str) -> Result<String> {
+/// Run inference and return suggested fixes.
+pub fn infer(prompt: &str) -> Result<Vec<String>> {
     let paths = find_model()?;
-    infer_gguf(prompt, &paths.model_path, &paths.tokenizer_path)
+    let mut engine = Engine::new(&paths.model_path, &paths.tokenizer_path)?;
+    let op = engine.infer(prompt)?;
+    Ok(infer_from_op(prompt, &op))
 }
 
-/// Generate tokens from a model with greedy decoding.
-fn generate_tokens(
-    prompt_tokens: &[u32],
-    tokenizer: &Tokenizer,
-    forward_fn: &mut dyn FnMut(&[u32], usize) -> Result<Tensor>,
-) -> Result<String> {
-    let mut logits_processor = LogitsProcessor::new(0, None, None);
-
-    let logits = forward_fn(prompt_tokens, 0)?;
-    let logits = logits.to_dtype(DType::F32)?;
-    let mut next_logits = extract_last_logits(&logits)?;
-    let mut next_token = logits_processor.sample(&next_logits)?;
-
-    let mut generated_tokens = vec![next_token];
-    let mut pos = prompt_tokens.len();
-
-    for _ in 0..MAX_GENERATED_TOKENS {
-        let logits = forward_fn(&[next_token], pos)?;
-        let logits = logits.to_dtype(DType::F32)?;
-        next_logits = extract_last_logits(&logits)?;
-        next_token = logits_processor.sample(&next_logits)?;
-
-        if next_token == 1 || next_token == 0 {
-            break;
-        }
-        let decoded = tokenizer.decode(&[next_token], true).unwrap_or_default();
-        if decoded.contains('\n') {
-            break;
-        }
-        generated_tokens.push(next_token);
-        pos += 1;
-    }
-
-    let output = tokenizer
-        .decode(&generated_tokens, true)
-        .map_err(anyhow::Error::msg)?
-        .trim()
-        .to_string();
-
-    Ok(output)
+/// Run inference using an existing engine and return suggested fixes.
+pub fn infer_with_engine(engine: &mut Engine, prompt: &str) -> Result<Vec<String>> {
+    let op = engine.infer(prompt)?;
+    Ok(infer_from_op(prompt, &op))
 }
-
-/// Extract the last position's logits from a tensor of varying shape.
-/// Handles [vocab], [seq_len, vocab], etc.
-fn extract_last_logits(logits: &Tensor) -> Result<Tensor> {
-    let dims = logits.dims();
-    match dims.len() {
-        1 => Ok(logits.clone()),                        // [vocab] — single position
-        2 => Ok(logits.get(dims[0] - 1)?),              // [seq_len, vocab] — last position
-        _ => bail!("unexpected logits shape: {:?}", dims),
-    }
-}
-
-/// GGUF inference via candle quantized_gemma3.
-fn infer_gguf(prompt: &str, model_path: &PathBuf, tokenizer_path: &PathBuf) -> Result<String> {
-    use candle_transformers::models::quantized_gemma3::ModelWeights;
-
-    let device = Device::Cpu;
-    let mut file = std::fs::File::open(model_path)?;
-    let content = candle_core::quantized::gguf_file::Content::read(&mut file)?;
-    let mut model = ModelWeights::from_gguf(content, &mut file, &device)?;
-
-    let tokenizer = Tokenizer::from_file(tokenizer_path).map_err(anyhow::Error::msg)?;
-    let encoding = tokenizer.encode(prompt, true).map_err(anyhow::Error::msg)?;
-    let prompt_tokens = encoding.get_ids().to_vec();
-
-    generate_tokens(&prompt_tokens, &tokenizer, &mut |tokens, pos| {
-        let input = Tensor::new(tokens, &device)?.unsqueeze(0)?;
-        let logits = model.forward(&input, pos)?;
-        Ok(logits.squeeze(0)?)
-    })
-}
-
