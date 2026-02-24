@@ -200,17 +200,22 @@ fn infer_from_op(prompt: &str, op: &str) -> Vec<String> {
         .find_map(|line| line.strip_prefix("$ "))
         .unwrap_or("");
 
-    let op = op.trim();
-    if op == "NONE" || op.is_empty() {
-        return vec![];
+    let mut fixes = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    for line in op.lines() {
+        let line = line.trim();
+        if line.is_empty() || line == "NONE" {
+            continue;
+        }
+        if let Some(fix) = apply_op(command, line) {
+            if seen.insert(fix.clone()) {
+                fixes.push(fix);
+            }
+        }
     }
-    if let Some(fix) = apply_op(command, op) {
-        return vec![fix];
-    }
-    if op.starts_with("FULL ") {
-        return vec![op[5..].to_string()];
-    }
-    vec![]
+
+    fixes
 }
 
 /// Try the daemon for inference. Returns Some(fixes) on success, None on failure.
@@ -328,5 +333,58 @@ mod tests {
     #[test]
     fn test_unknown_op() {
         assert_eq!(apply_op("git push", "UNKNOWN something"), None);
+    }
+
+    use super::infer_from_op;
+
+    #[test]
+    fn test_infer_single_op() {
+        let prompt = "$ git psuh origin main\n> git: 'psuh' is not a git command.\nOP:";
+        assert_eq!(
+            infer_from_op(prompt, "REPLACE psuh push"),
+            vec!["git push origin main"]
+        );
+    }
+
+    #[test]
+    fn test_infer_multi_alternatives() {
+        let prompt = "$ git push\n> rejected non-fast-forward\nOP:";
+        let op = "FLAG --force-with-lease\nFULL git pull --rebase && git push";
+        let fixes = infer_from_op(prompt, op);
+        assert_eq!(fixes, vec![
+            "git --force-with-lease push",
+            "git pull --rebase && git push",
+        ]);
+    }
+
+    #[test]
+    fn test_infer_multi_dedup() {
+        let prompt = "$ git push\n> rejected\nOP:";
+        let op = "FLAG --force-with-lease\nFLAG --force-with-lease";
+        let fixes = infer_from_op(prompt, op);
+        assert_eq!(fixes, vec!["git --force-with-lease push"]);
+    }
+
+    #[test]
+    fn test_infer_multi_skips_none() {
+        let prompt = "$ git push\n> rejected\nOP:";
+        let op = "FLAG --force-with-lease\nNONE\nFULL git pull && git push";
+        let fixes = infer_from_op(prompt, op);
+        assert_eq!(fixes, vec![
+            "git --force-with-lease push",
+            "git pull && git push",
+        ]);
+    }
+
+    #[test]
+    fn test_infer_all_none() {
+        let prompt = "$ asdfghjkl\n> command not found\nOP:";
+        assert_eq!(infer_from_op(prompt, "NONE"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_infer_empty() {
+        let prompt = "$ test\n> error\nOP:";
+        assert_eq!(infer_from_op(prompt, ""), Vec::<String>::new());
     }
 }

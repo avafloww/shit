@@ -5,7 +5,7 @@ use candle_transformers::models::quantized_gemma3::ModelWeights;
 use std::path::Path;
 use tokenizers::Tokenizer;
 
-const MAX_GENERATED_TOKENS: usize = 30;
+const MAX_GENERATED_TOKENS: usize = 100;
 
 pub struct Engine {
     model: ModelWeights,
@@ -70,10 +70,6 @@ fn generate_tokens(
         next_token = logits_processor.sample(&next_logits)?;
 
         if next_token == 1 || next_token == 0 {
-            break;
-        }
-        let decoded = tokenizer.decode(&[next_token], true).unwrap_or_default();
-        if decoded.contains('\n') {
             break;
         }
         generated_tokens.push(next_token);

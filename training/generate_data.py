@@ -25,7 +25,7 @@ class Scenario:
     rule_name: str
     command: str
     output: str
-    expected_correction: str | None = None
+    expected_correction: str | list[str] | None = None
     category: str = "general"
 
 
@@ -77,7 +77,11 @@ GIT_SCENARIOS: list[Scenario] = [
             "error: failed to push some refs to 'github.com:user/repo.git'\n"
             "hint: Updates were rejected because the tip of your current branch is behind\n"
         ),
-        expected_correction="git push --force-with-lease",
+        expected_correction=[
+            "git push --force-with-lease",
+            "git pull --rebase && git push",
+            "git pull && git push",
+        ],
         category="git",
     ),
     Scenario(
@@ -91,7 +95,11 @@ GIT_SCENARIOS: list[Scenario] = [
             "hint: its remote counterpart. Integrate the remote changes (e.g.\n"
             "hint: 'git pull ...') before pushing again.\n"
         ),
-        expected_correction="git push --force-with-lease origin main",
+        expected_correction=[
+            "git push --force-with-lease origin main",
+            "git pull --rebase && git push origin main",
+            "git pull && git push origin main",
+        ],
         category="git",
     ),
     Scenario(
@@ -150,7 +158,10 @@ GIT_SCENARIOS: list[Scenario] = [
             "Please commit your changes or stash them before you switch branches.\n"
             "Aborting\n"
         ),
-        expected_correction="git stash && git checkout feature-api",
+        expected_correction=[
+            "git stash && git checkout feature-api",
+            "git checkout -f feature-api",
+        ],
         category="git",
     ),
     Scenario(
@@ -354,7 +365,10 @@ GIT_SCENARIOS: list[Scenario] = [
             "CONFLICT (content): Merge conflict in src/app.py\n"
             "Automatic merge failed; fix conflicts and then commit the result.\n"
         ),
-        expected_correction="git mergetool",
+        expected_correction=[
+            "git merge --abort",
+            "git mergetool",
+        ],
         category="git",
     ),
     Scenario(
@@ -374,7 +388,10 @@ GIT_SCENARIOS: list[Scenario] = [
             "hint: Resolve all conflicts manually, mark them as resolved with\n"
             "hint: 'git add/rm <conflicted_files>', then run 'git rebase --continue'.\n"
         ),
-        expected_correction="git rebase --abort",
+        expected_correction=[
+            "git rebase --abort",
+            "git rebase --skip",
+        ],
         category="git",
     ),
     Scenario(
@@ -621,6 +638,117 @@ GIT_SCENARIOS: list[Scenario] = [
         expected_correction="git show",
         category="git",
     ),
+    # --- multi-alternative: push diverged ---
+    Scenario(
+        rule_name="git_push_diverged",
+        command="git push origin feature-login",
+        output=(
+            "To github.com:user/repo.git\n"
+            " ! [rejected]        feature-login -> feature-login (non-fast-forward)\n"
+            "error: failed to push some refs to 'github.com:user/repo.git'\n"
+            "hint: Updates were rejected because the tip of your current branch is behind\n"
+            "hint: its remote counterpart. If you want to integrate the remote changes,\n"
+            "hint: use 'git pull' before pushing again.\n"
+        ),
+        expected_correction=[
+            "git push --force-with-lease origin feature-login",
+            "git pull --rebase && git push origin feature-login",
+        ],
+        category="git",
+    ),
+    # --- multi-alternative: cherry-pick conflict ---
+    Scenario(
+        rule_name="git_cherry_pick_conflict",
+        command="git cherry-pick abc1234",
+        output=(
+            "error: could not apply abc1234... some commit\n"
+            "hint: After resolving the conflicts, mark the corrected paths\n"
+            "hint: with 'git add <paths>' or 'git rm <paths>'\n"
+            "hint: and commit the result with 'git commit'\n"
+        ),
+        expected_correction=[
+            "git cherry-pick --abort",
+            "git cherry-pick --skip",
+        ],
+        category="git",
+    ),
+    # --- multi-alternative: git reset ambiguous ---
+    Scenario(
+        rule_name="git_reset_ambiguous",
+        command="git reset src/app.py",
+        output=(
+            "Unstaged changes after reset:\n"
+            "M\tsrc/app.py\n"
+        ),
+        expected_correction=[
+            "git reset HEAD src/app.py",
+            "git checkout -- src/app.py",
+        ],
+        category="git",
+    ),
+    # --- multi-alternative: stash conflict on pop ---
+    Scenario(
+        rule_name="git_stash_pop_conflict",
+        command="git stash pop",
+        output=(
+            "Auto-merging src/app.py\n"
+            "CONFLICT (content): Merge conflict in src/app.py\n"
+            "The stash entry is kept in case you need it again.\n"
+        ),
+        expected_correction=[
+            "git checkout --theirs src/app.py && git add src/app.py",
+            "git checkout --ours src/app.py && git add src/app.py",
+            "git stash drop",
+        ],
+        category="git",
+    ),
+    # --- multi-alternative: git pull conflict ---
+    Scenario(
+        rule_name="git_pull_conflict",
+        command="git pull",
+        output=(
+            "Auto-merging src/main.rs\n"
+            "CONFLICT (content): Merge conflict in src/main.rs\n"
+            "Automatic merge failed; fix conflicts and then commit the result.\n"
+        ),
+        expected_correction=[
+            "git merge --abort",
+            "git mergetool",
+        ],
+        category="git",
+    ),
+    # --- multi-alternative: git pull with uncommitted changes ---
+    Scenario(
+        rule_name="git_pull_dirty",
+        command="git pull",
+        output=(
+            "error: Your local changes to the following files would be overwritten by merge:\n"
+            "\tsrc/app.py\n"
+            "Please commit your changes or stash them before you merge.\n"
+            "Aborting\n"
+        ),
+        expected_correction=[
+            "git stash && git pull",
+            "git commit -am 'wip' && git pull",
+        ],
+        category="git",
+    ),
+    # --- multi-alternative: switch with uncommitted changes ---
+    Scenario(
+        rule_name="git_switch_uncommitted",
+        command="git switch main",
+        output=(
+            "error: Your local changes to the following files would be overwritten by checkout:\n"
+            "\tsrc/app.py\n"
+            "Please commit your changes or stash them before you switch branches.\n"
+            "Aborting\n"
+        ),
+        expected_correction=[
+            "git stash && git switch main",
+            "git switch -f main",
+        ],
+        category="git",
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -668,7 +796,10 @@ PACKAGE_MANAGER_SCENARIOS: list[Scenario] = [
             "'/usr/lib/python3/dist-packages/requests'\n"
             "Consider using the `--user` switch or an existing virtual environment.\n"
         ),
-        expected_correction="pip install --user requests",
+        expected_correction=[
+            "pip install --user requests",
+            "sudo pip install requests",
+        ],
         category="package_manager",
     ),
     Scenario(
@@ -797,7 +928,10 @@ PACKAGE_MANAGER_SCENARIOS: list[Scenario] = [
             "npm error errno -13\n"
             "npm error Error: EACCES: permission denied, mkdir '/usr/local/lib/node_modules'\n"
         ),
-        expected_correction="sudo npm install -g typescript",
+        expected_correction=[
+            "sudo npm install -g typescript",
+            "npm install -g typescript --prefix ~/.local",
+        ],
         category="package_manager",
     ),
     Scenario(
@@ -1658,7 +1792,10 @@ PERMISSION_SCENARIOS: list[Scenario] = [
             "at unix:///var/run/docker.sock: Get \"http://%2Fvar%2Frun%2Fdocker.sock/v1.24/containers/json\": "
             "dial unix /var/run/docker.sock: connect: permission denied\n"
         ),
-        expected_correction="sudo docker ps",
+        expected_correction=[
+            "sudo docker ps",
+            "sudo usermod -aG docker $USER",
+        ],
         category="permissions",
     ),
     Scenario(
@@ -1836,7 +1973,10 @@ NETWORK_SCENARIOS: list[Scenario] = [
         rule_name="port_in_use_kill",
         command="python app.py",
         output="OSError: [Errno 98] Address already in use\nPort 5000 is already in use.\n",
-        expected_correction="fuser -k 5000/tcp && python app.py",
+        expected_correction=[
+            "fuser -k 5000/tcp && python app.py",
+            "lsof -ti:5000 | xargs kill && python app.py",
+        ],
         category="network",
     ),
     Scenario(
@@ -1901,7 +2041,10 @@ NETWORK_SCENARIOS: list[Scenario] = [
             "Error: listen EADDRINUSE: address already in use :::3000\n"
             "    at Server.setupListenHandle [as _listen2] (node:net:1855:16)\n"
         ),
-        expected_correction="fuser -k 3000/tcp && npm start",
+        expected_correction=[
+            "fuser -k 3000/tcp && npm start",
+            "lsof -ti:3000 | xargs kill && npm start",
+        ],
         category="network",
     ),
     Scenario(
@@ -2333,7 +2476,10 @@ DOCKER_SCENARIOS: list[Scenario] = [
             "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. "
             "Is the docker daemon running?\n"
         ),
-        expected_correction="sudo systemctl start docker && docker images",
+        expected_correction=[
+            "sudo systemctl start docker && docker images",
+            "sudo dockerd &",
+        ],
         category="docker",
     ),
     Scenario(
@@ -2687,6 +2833,10 @@ def generate_examples(use_thefuck: bool = True) -> list[dict]:
     for scenario in SCENARIOS + NEGATIVE_SCENARIOS:
         correction = scenario.expected_correction
 
+        # Normalize list corrections to newline-separated string
+        if isinstance(correction, list):
+            correction = "\n".join(correction)
+
         if use_thefuck and correction is not None:
             dynamic = try_thefuck_rule(
                 scenario.rule_name, scenario.command, scenario.output
@@ -2747,11 +2897,15 @@ def main():
     if args.stats:
         # Count by category
         categories: dict[str, int] = {}
+        n_multi = 0
         for s in SCENARIOS + NEGATIVE_SCENARIOS:
             categories[s.category] = categories.get(s.category, 0) + 1
+            if isinstance(s.expected_correction, list):
+                n_multi += 1
         print("\nBy category:")
         for cat, count in sorted(categories.items()):
             print(f"  {cat}: {count}")
+        print(f"\nMulti-alternative scenarios: {n_multi}")
 
 
 if __name__ == "__main__":

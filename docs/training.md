@@ -47,6 +47,10 @@ python3 -c "
 import json
 
 def command_to_op(command, correction):
+    # Handle multi-alternative corrections (newline-separated)
+    if '\n' in correction:
+        ops = [command_to_op(command, c.strip()) for c in correction.split('\n') if c.strip()]
+        return '\n'.join(ops)
     if correction == '?': return 'NONE'
     if correction.startswith('sudo ') and not command.startswith('sudo '):
         if correction[5:] == command: return 'PREPEND sudo'
