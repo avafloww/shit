@@ -30,6 +30,25 @@ enum Command {
         /// Shell to generate init script for (fish, bash, zsh, powershell, tcsh)
         shell: String,
     },
+    #[cfg(feature = "daemon")]
+    /// Manage the shit daemon (shitd)
+    Daemon {
+        #[command(subcommand)]
+        action: DaemonCommand,
+    },
+}
+
+#[cfg(feature = "daemon")]
+#[derive(Subcommand)]
+pub enum DaemonCommand {
+    /// Start the daemon server (foreground)
+    Start,
+    /// Install as a system service (systemd/launchd)
+    Install,
+    /// Uninstall the system service
+    Uninstall,
+    /// Check if the daemon is running
+    Status,
 }
 
 fn main() -> Result<()> {
@@ -39,6 +58,10 @@ fn main() -> Result<()> {
         Some(Command::Init { shell }) => {
             let script = shell::get_init_script(&shell)?;
             print!("{script}");
+        }
+        #[cfg(feature = "daemon")]
+        Some(Command::Daemon { action }) => {
+            daemon::handle(action)?;
         }
         None => {
             let auto_execute = cli.yes;
