@@ -1822,7 +1822,11 @@ PERMISSION_SCENARIOS: list[Scenario] = [
             "    python3-xyz, where xyz is the package you are trying to\n"
             "    install.\n"
         ),
-        expected_correction="pip install --break-system-packages requests",
+        expected_correction=[
+            "uvx requests",
+            "pipx install requests",
+            "pip install --break-system-packages requests",
+        ],
         category="permissions",
     ),
     # --- pacman without sudo (various operations) ---
@@ -2358,7 +2362,11 @@ GENERAL_SCENARIOS: list[Scenario] = [
             "hint: See PEP 668 for the reasons why this is disallowed.\n"
             "hint: If you want to install packages system-wide, use pipx.\n"
         ),
-        expected_correction="python -m venv .venv && source .venv/bin/activate && pip install requests",
+        expected_correction=[
+            "uvx requests",
+            "pipx install requests",
+            "python -m venv .venv && source .venv/bin/activate && pip install requests",
+        ],
         category="general",
     ),
     # --- double sudo ---

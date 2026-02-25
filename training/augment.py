@@ -13,8 +13,23 @@ import random
 import re
 from pathlib import Path
 
+WORDLISTS_DIR = Path(__file__).parent / "wordlists"
+
+
+def load_wordlist(name: str) -> list[str]:
+    """Load a wordlist from training/wordlists/{name}.txt (one entry per line)."""
+    path = WORDLISTS_DIR / f"{name}.txt"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Wordlist {path} not found. Run fetch_wordlists.py first."
+        )
+    entries = [line.strip() for line in path.read_text().splitlines() if line.strip()]
+    return entries
+
+
 # ---------------------------------------------------------------------------
-# Replacement pools — kept large to maximise unique combinations
+# Replacement pools
+# Inline lists for small/specialized pools, wordlist files for large ones
 # ---------------------------------------------------------------------------
 
 BRANCHES = [
@@ -53,38 +68,11 @@ BRANCHES = [
     "user/wip", "alice/refactor", "bob/hotfix",
 ]
 
-PACKAGES = [
-    # Python
-    "requests", "flask", "django", "fastapi", "numpy", "pandas",
-    "scipy", "matplotlib", "sqlalchemy", "celery", "redis", "boto3",
-    "pytest", "black", "mypy", "pydantic", "httpx", "aiohttp",
-    "pillow", "cryptography", "jwt", "uvicorn", "gunicorn", "poetry",
-    "click", "typer", "rich", "loguru", "structlog", "arrow",
-    "pendulum", "humanize", "tqdm", "more-itertools", "toolz",
-    "attrs", "dataclasses-json", "marshmallow", "cerberus",
-    "alembic", "peewee", "tortoise-orm", "motor", "pymongo",
-    "psycopg2", "psycopg3", "asyncpg", "aiomysql", "databases",
-    "paramiko", "fabric", "invoke", "sh", "plumbum",
-    "scrapy", "selenium", "playwright", "beautifulsoup4", "lxml",
-    "openai", "anthropic", "langchain", "transformers", "torch",
-    "tensorflow", "sklearn", "xgboost", "lightgbm", "catboost",
-    # JavaScript / Node
-    "express", "react", "vue", "next", "webpack", "typescript",
-    "lodash", "axios", "prisma", "tailwindcss", "eslint", "prettier",
-    "jest", "vitest", "mocha", "chai", "sinon", "supertest",
-    "fastify", "koa", "hapi", "nestjs", "socket.io", "ws",
-    "dotenv", "winston", "morgan", "cors", "helmet", "joi",
-    "zod", "yup", "date-fns", "dayjs", "moment", "luxon",
-    "redux", "mobx", "zustand", "jotai", "recoil", "xstate",
-    "react-query", "swr", "apollo-client", "graphql", "urql",
-    "vite", "rollup", "parcel", "esbuild", "swc", "babel",
-    # Rust crates
-    "tokio", "serde", "clap", "actix-web", "reqwest", "anyhow",
-    "thiserror", "tracing", "log", "env_logger", "chrono", "uuid",
-    "rand", "rayon", "crossbeam", "dashmap", "once_cell", "lazy_static",
-    "async-trait", "futures", "tokio-stream", "hyper", "axum", "warp",
-    "diesel", "sqlx", "sea-orm", "redis", "mongodb", "surrealdb",
-]
+PACKAGES = (
+    load_wordlist("packages-python")
+    + load_wordlist("packages-node")
+    + load_wordlist("packages-rust")
+)
 
 USERNAMES = [
     "alice", "bob", "charlie", "dave", "eve", "frank", "grace",
@@ -165,19 +153,9 @@ SSH_KEY_FILES = [
     "deploy_key", "github_key", "work_key",
 ]
 
-# Docker image names
-DOCKER_IMAGES = [
-    "nginx", "postgres", "redis", "mysql", "mongo",
-    "node", "python", "ubuntu", "alpine", "debian",
-    "myapp", "api-server", "web-app", "worker",
-    "myapp:latest", "myapp:v1.0", "myapp:dev",
-]
+DOCKER_IMAGES = load_wordlist("docker-images")
 
-# Kubernetes resource names
-K8S_RESOURCES = [
-    "myapp", "api-server", "web-frontend", "worker",
-    "postgres", "redis", "nginx",
-]
+K8S_RESOURCES = load_wordlist("k8s-resources")
 
 COMMANDS_TYPOS = {
     "build": ["biuld", "buld", "buidl", "buuild", "bulid", "buidld"],
@@ -210,17 +188,9 @@ SERVICES = [
 # Error message formatting variants (for slight output variation)
 BASH_SHELLS = ["bash", "zsh", "fish", "sh"]
 
-REPO_NAMES = [
-    "myrepo", "my-project", "my-app", "api-server",
-    "web-frontend", "backend", "monorepo", "microservice",
-    "library", "sdk", "cli-tool",
-]
+REPO_NAMES = load_wordlist("repo-names")
 
-GITHUB_USERS = [
-    "alice", "bob", "charlie", "myorg", "acme-corp", "dev-team",
-    "user", "company", "opensource", "startup-co", "bigtech",
-    "freelancer", "consultancy", "hackathon-team",
-]
+GITHUB_USERS = load_wordlist("github-users")
 
 # Generic script/file names used in runtime errors
 SCRIPT_NAMES = [
@@ -284,15 +254,7 @@ IP_ADDRESSES = [
     "203.0.113.1", "198.51.100.2", "198.18.0.5",
 ]
 
-# Pacman / apt package names (more variety)
-SYSTEM_PACKAGES = [
-    "vim", "git", "curl", "wget", "htop", "tmux", "zsh",
-    "python3", "nodejs", "nginx", "postgresql", "redis",
-    "docker", "kubectl", "terraform", "ansible",
-    "build-essential", "gcc", "make", "cmake",
-    "libssl-dev", "libffi-dev", "python3-dev",
-    "jq", "ripgrep", "fd", "bat", "fzf", "tree",
-]
+SYSTEM_PACKAGES = load_wordlist("system-packages")
 
 
 # ---------------------------------------------------------------------------
@@ -595,6 +557,11 @@ def augment_dataset(
         List of all examples (originals + augmented), deduplicated.
     """
     rng = random.Random(seed)
+
+    # Shuffle all wordlist-backed pools for this run
+    for pool in [PACKAGES, DOCKER_IMAGES, K8S_RESOURCES, REPO_NAMES,
+                 GITHUB_USERS, SYSTEM_PACKAGES]:
+        rng.shuffle(pool)
 
     # Always include originals
     seen: set[str] = set()
