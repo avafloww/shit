@@ -5,11 +5,25 @@ use anyhow::Result;
 
 pub fn handle(action: crate::DaemonCommand) -> Result<()> {
     match action {
-        crate::DaemonCommand::Start => server::run_server(),
-        crate::DaemonCommand::Install => service::install(),
-        crate::DaemonCommand::Uninstall => service::uninstall(),
+        crate::DaemonCommand::Run => server::run_server(),
+        crate::DaemonCommand::Start => start(),
+        crate::DaemonCommand::Stop => service::stop(),
+        crate::DaemonCommand::Restart => service::restart(),
         crate::DaemonCommand::Status => status(),
+        crate::DaemonCommand::Logs { follow } => service::logs(follow),
+        crate::DaemonCommand::Uninstall => {
+            let _ = service::stop();
+            service::uninstall()
+        }
     }
+}
+
+fn start() -> Result<()> {
+    if !service::is_installed()? {
+        eprintln!("shitd: service not installed, installing now...");
+        service::install()?;
+    }
+    service::start()
 }
 
 fn status() -> Result<()> {

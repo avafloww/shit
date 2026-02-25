@@ -20,6 +20,15 @@ fn binary_path() -> Result<PathBuf> {
     Ok(std::env::current_exe()?)
 }
 
+// --- public API ---
+
+pub fn is_installed() -> Result<bool> {
+    match detect_service_manager()? {
+        ServiceManager::Systemd => Ok(systemd_unit_path()?.exists()),
+        ServiceManager::Launchd => Ok(launchd_plist_path()?.exists()),
+    }
+}
+
 pub fn install() -> Result<()> {
     match detect_service_manager()? {
         ServiceManager::Systemd => install_systemd(),
@@ -31,6 +40,37 @@ pub fn uninstall() -> Result<()> {
     match detect_service_manager()? {
         ServiceManager::Systemd => uninstall_systemd(),
         ServiceManager::Launchd => uninstall_launchd(),
+    }
+}
+
+pub fn start() -> Result<()> {
+    match detect_service_manager()? {
+        ServiceManager::Systemd => start_systemd(),
+        ServiceManager::Launchd => start_launchd(),
+    }
+}
+
+pub fn stop() -> Result<()> {
+    match detect_service_manager()? {
+        ServiceManager::Systemd => stop_systemd(),
+        ServiceManager::Launchd => stop_launchd(),
+    }
+}
+
+pub fn restart() -> Result<()> {
+    match detect_service_manager()? {
+        ServiceManager::Systemd => restart_systemd(),
+        ServiceManager::Launchd => {
+            let _ = stop_launchd();
+            start_launchd()
+        }
+    }
+}
+
+pub fn logs(follow: bool) -> Result<()> {
+    match detect_service_manager()? {
+        ServiceManager::Systemd => logs_systemd(follow),
+        ServiceManager::Launchd => logs_launchd(follow),
     }
 }
 
@@ -52,7 +92,7 @@ fn install_systemd() -> Result<()> {
          Description=shit daemon — keeps model in memory for fast inference\n\
          \n\
          [Service]\n\
-         ExecStart={} daemon start\n\
+         ExecStart={} daemon run\n\
          Restart=on-failure\n\
          \n\
          [Install]\n\
@@ -71,22 +111,18 @@ fn install_systemd() -> Result<()> {
     }
 
     let status = std::process::Command::new("systemctl")
-        .args(["--user", "enable", "--now", "shitd"])
+        .args(["--user", "enable", "shitd"])
         .status()?;
     if !status.success() {
-        bail!("systemctl enable --now shitd failed");
+        bail!("systemctl enable shitd failed");
     }
 
-    eprintln!("shitd: service installed and started");
+    eprintln!("shitd: service installed and enabled");
     Ok(())
 }
 
 fn uninstall_systemd() -> Result<()> {
     let unit_path = systemd_unit_path()?;
-
-    let _ = std::process::Command::new("systemctl")
-        .args(["--user", "stop", "shitd"])
-        .status();
 
     let _ = std::process::Command::new("systemctl")
         .args(["--user", "disable", "shitd"])
@@ -105,7 +141,56 @@ fn uninstall_systemd() -> Result<()> {
     Ok(())
 }
 
+fn start_systemd() -> Result<()> {
+    let status = std::process::Command::new("systemctl")
+        .args(["--user", "start", "shitd"])
+        .status()?;
+    if !status.success() {
+        bail!("systemctl start shitd failed");
+    }
+    eprintln!("shitd: started");
+    Ok(())
+}
+
+fn stop_systemd() -> Result<()> {
+    let status = std::process::Command::new("systemctl")
+        .args(["--user", "stop", "shitd"])
+        .status()?;
+    if !status.success() {
+        bail!("systemctl stop shitd failed");
+    }
+    eprintln!("shitd: stopped");
+    Ok(())
+}
+
+fn restart_systemd() -> Result<()> {
+    let status = std::process::Command::new("systemctl")
+        .args(["--user", "restart", "shitd"])
+        .status()?;
+    if !status.success() {
+        bail!("systemctl restart shitd failed");
+    }
+    eprintln!("shitd: restarted");
+    Ok(())
+}
+
+fn logs_systemd(follow: bool) -> Result<()> {
+    let mut args = vec!["--user", "-u", "shitd", "-n", "50", "--no-pager"];
+    if follow {
+        args.push("-f");
+    }
+    let status = std::process::Command::new("journalctl")
+        .args(&args)
+        .status()?;
+    if !status.success() {
+        bail!("journalctl failed");
+    }
+    Ok(())
+}
+
 // --- launchd ---
+
+const LAUNCHD_LABEL: &str = "dev.ava.shitd";
 
 fn launchd_plist_path() -> Result<PathBuf> {
     let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
@@ -124,12 +209,12 @@ fn install_launchd() -> Result<()> {
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>dev.ava.shitd</string>
+    <string>{label}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>{}</string>
+        <string>{bin}</string>
         <string>daemon</string>
-        <string>start</string>
+        <string>run</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -138,20 +223,13 @@ fn install_launchd() -> Result<()> {
 </dict>
 </plist>
 "#,
-        bin.display()
+        label = LAUNCHD_LABEL,
+        bin = bin.display()
     );
 
     std::fs::write(&plist_path, plist)?;
     eprintln!("shitd: wrote {}", plist_path.display());
-
-    let status = std::process::Command::new("launchctl")
-        .args(["load", &plist_path.to_string_lossy()])
-        .status()?;
-    if !status.success() {
-        bail!("launchctl load failed");
-    }
-
-    eprintln!("shitd: service installed and started");
+    eprintln!("shitd: service installed");
     Ok(())
 }
 
@@ -159,14 +237,51 @@ fn uninstall_launchd() -> Result<()> {
     let plist_path = launchd_plist_path()?;
 
     if plist_path.exists() {
-        let _ = std::process::Command::new("launchctl")
-            .args(["unload", &plist_path.to_string_lossy()])
-            .status();
-
         std::fs::remove_file(&plist_path)?;
         eprintln!("shitd: removed {}", plist_path.display());
     }
 
     eprintln!("shitd: service uninstalled");
+    Ok(())
+}
+
+fn start_launchd() -> Result<()> {
+    let plist_path = launchd_plist_path()?;
+    let status = std::process::Command::new("launchctl")
+        .args(["load", &plist_path.to_string_lossy()])
+        .status()?;
+    if !status.success() {
+        bail!("launchctl load failed");
+    }
+    eprintln!("shitd: started");
+    Ok(())
+}
+
+fn stop_launchd() -> Result<()> {
+    let plist_path = launchd_plist_path()?;
+    let status = std::process::Command::new("launchctl")
+        .args(["unload", &plist_path.to_string_lossy()])
+        .status()?;
+    if !status.success() {
+        bail!("launchctl unload failed");
+    }
+    eprintln!("shitd: stopped");
+    Ok(())
+}
+
+fn logs_launchd(follow: bool) -> Result<()> {
+    let predicate = format!("process == \"{}\"", "shit");
+    let status = if follow {
+        std::process::Command::new("log")
+            .args(["stream", "--predicate", &predicate, "--style", "compact"])
+            .status()?
+    } else {
+        std::process::Command::new("log")
+            .args(["show", "--predicate", &predicate, "--style", "compact", "--last", "5m"])
+            .status()?
+    };
+    if !status.success() {
+        bail!("log {} failed", if follow { "stream" } else { "show" });
+    }
     Ok(())
 }

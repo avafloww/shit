@@ -41,14 +41,25 @@ enum Command {
 #[cfg(feature = "daemon")]
 #[derive(Subcommand)]
 pub enum DaemonCommand {
-    /// Start the daemon server (foreground)
+    /// Run the daemon server in foreground (used by service files)
+    #[command(hide = true)]
+    Run,
+    /// Start the daemon service (installs if needed)
     Start,
-    /// Install as a system service (systemd/launchd)
-    Install,
-    /// Uninstall the system service
-    Uninstall,
-    /// Check if the daemon is running
+    /// Stop the daemon service
+    Stop,
+    /// Restart the daemon service
+    Restart,
+    /// Show daemon service status
     Status,
+    /// Show daemon logs
+    Logs {
+        /// Follow log output
+        #[arg(short, long)]
+        follow: bool,
+    },
+    /// Stop and uninstall the daemon service
+    Uninstall,
 }
 
 fn main() -> Result<()> {
