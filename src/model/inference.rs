@@ -85,8 +85,6 @@ fn download_file_with_fallback(
     match download_file(url, dest, expected_sha256) {
         Ok(()) => Ok(()),
         Err(e) => {
-            // Clear the progress line from the failed attempt
-            eprint!("\r");
             if e.to_string().contains("404") || e.to_string().contains("http status") {
                 download_file(fallback_url, dest, expected_sha256)
             } else {
@@ -102,7 +100,6 @@ fn download_file(url: &str, dest: &PathBuf, expected_sha256: &str) -> Result<()>
     use std::time::Duration;
 
     let filename = dest.file_name().unwrap().to_string_lossy();
-    eprint!("shit: downloading {}...", filename);
 
     let agent = ureq::Agent::config_builder()
         .timeout_connect(Some(Duration::from_secs(10)))
@@ -117,13 +114,25 @@ fn download_file(url: &str, dest: &PathBuf, expected_sha256: &str) -> Result<()>
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse().ok());
 
+    let pb = if let Some(total) = total {
+        indicatif::ProgressBar::new(total)
+    } else {
+        indicatif::ProgressBar::new_spinner()
+    };
+    pb.set_style(
+        indicatif::ProgressStyle::default_bar()
+            .template("  {spinner:.cyan} {msg} [{bar:30.cyan/dim}] {bytes}/{total_bytes} ({eta})")
+            .unwrap()
+            .progress_chars("━╸─"),
+    );
+    pb.set_message(format!("downloading {filename}"));
+    pb.enable_steady_tick(Duration::from_millis(100));
+
     let mut reader = response.into_body().into_reader();
     let tmp = dest.with_extension("part");
     let mut file = std::fs::File::create(&tmp)?;
     let mut hasher = Sha256::new();
-    let mut downloaded: u64 = 0;
     let mut buf = [0u8; 64 * 1024];
-    let mut last_report = 0u64;
 
     loop {
         let n = reader.read(&mut buf)?;
@@ -132,28 +141,17 @@ fn download_file(url: &str, dest: &PathBuf, expected_sha256: &str) -> Result<()>
         }
         file.write_all(&buf[..n])?;
         hasher.update(&buf[..n]);
-        downloaded += n as u64;
-
-        if downloaded - last_report > 5_000_000 {
-            if let Some(total) = total {
-                eprint!(
-                    "\rshit: downloading {}... {}/{}MB",
-                    filename,
-                    downloaded / 1_000_000,
-                    total / 1_000_000
-                );
-            }
-            last_report = downloaded;
-        }
+        pb.inc(n as u64);
     }
     drop(file);
+    pb.finish_and_clear();
 
     // Verify integrity before accepting
     let actual_hash = format!("{:x}", hasher.finalize());
     if actual_hash != expected_sha256 {
         let _ = std::fs::remove_file(&tmp);
         bail!(
-            "SHA256 mismatch for {}: expected {}, got {}",
+            "💩 SHA256 mismatch for {}: expected {}, got {}",
             filename,
             expected_sha256,
             actual_hash
@@ -161,7 +159,9 @@ fn download_file(url: &str, dest: &PathBuf, expected_sha256: &str) -> Result<()>
     }
 
     std::fs::rename(&tmp, dest)?;
-    eprintln!("\rshit: downloaded {}              ", filename);
+
+    let green = console::Style::new().green();
+    eprintln!("  ✓ {}", green.apply_to(format!("downloaded {filename}")));
     Ok(())
 }
 

@@ -7,9 +7,10 @@ mod shell;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use console::Style;
 
 #[derive(Parser)]
-#[command(name = "shit", version, about = "LLM-powered command correction")]
+#[command(name = "shit", version, about = "💩 LLM-powered command correction")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -89,39 +90,54 @@ fn run_correction(auto_execute: bool, dry_run: bool) -> Result<()> {
 
     let context = shell::read_command_context()?;
     let formatted = prompt::format_prompt(&context);
-    let fixes = model::infer(&formatted)?;
+
+    let spinner = indicatif::ProgressBar::new_spinner();
+    spinner.set_style(
+        indicatif::ProgressStyle::default_spinner()
+            .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+            .template("{spinner:.cyan} {msg}")
+            .unwrap(),
+    );
+    spinner.set_message("thinking...");
+    spinner.enable_steady_tick(std::time::Duration::from_millis(80));
+    let fixes = model::infer(&formatted);
+    spinner.finish_and_clear();
+    let fixes = fixes?;
 
     if fixes.is_empty() {
-        eprintln!("shit: can't figure this one out");
+        eprintln!("💩 can't figure this one out");
         return Ok(());
     }
 
+    let green_bold = Style::new().green().bold();
+
     let chosen = if fixes.len() == 1 {
-        eprintln!("  {}", fixes[0]);
+        eprintln!("  ✓ {}", green_bold.apply_to(&fixes[0]));
         if dry_run {
             return Ok(());
         }
         if !auto_execute {
-            eprintln!("  [Enter to execute / ^C to cancel]");
+            let dim = Style::new().dim();
+            eprintln!("  {}", dim.apply_to("[Enter ↵ execute / ^C cancel]"));
             wait_for_enter()?;
         }
         fixes[0].clone()
     } else {
-        for (i, fix) in fixes.iter().enumerate() {
-            eprintln!("  {} {}", i + 1, fix);
-        }
         if dry_run {
+            for fix in &fixes {
+                eprintln!("  ✓ {}", green_bold.apply_to(fix));
+            }
             return Ok(());
         }
         if auto_execute {
+            eprintln!("  ✓ {}", green_bold.apply_to(&fixes[0]));
             fixes[0].clone()
         } else {
-            eprint!("  [1-{}]: ", fixes.len());
-            let mut input = String::new();
-            std::io::stdin().read_line(&mut input)?;
-            let idx: usize = input.trim().parse().unwrap_or(1);
-            let idx = idx.saturating_sub(1).min(fixes.len() - 1);
-            fixes[idx].clone()
+            let selection = dialoguer::Select::with_theme(&dialoguer::theme::ColorfulTheme::default())
+                .items(&fixes)
+                .default(0)
+                .interact()?;
+            fixes[selection].clone()
         }
     };
 
