@@ -21,3 +21,6 @@
 .worktrees/
 .claude/worktrees/
 
+# misc
+*.kate-swp
+
