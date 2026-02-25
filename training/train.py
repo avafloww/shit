@@ -83,8 +83,8 @@ def tokenize_dataset(
             for line in stderr.splitlines():
                 parts.append(f"> {line}")
 
-        parts.append("OP:")
-        completion_text = " " + ex["op"] + "\n"
+        parts.append("OP: ")
+        completion_text = ex["op"] + tokenizer.eos_token
 
         prompt_text = "\n".join(parts)
 

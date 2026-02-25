@@ -21,6 +21,10 @@ cargo build --release
 
 # Model cached in ~/.local/share/shit/ (Linux), ~/Library/Application Support/shit/ (macOS)
 # For local dev: place shit.gguf + tokenizer.json next to binary to skip download
+
+# IMPORTANT: If the daemon is running, it caches the model in memory.
+# After model updates or code changes, restart it:
+shit daemon restart  # or: systemctl --user restart shitd
 ```
 
 ## Architecture

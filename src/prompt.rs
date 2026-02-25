@@ -7,6 +7,6 @@ pub fn format_prompt(ctx: &CommandContext) -> String {
         prompt.push_str(&format!("> {line}\n"));
     }
 
-    prompt.push_str("OP:");
+    prompt.push_str("OP: ");
     prompt
 }
