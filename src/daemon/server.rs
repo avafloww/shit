@@ -1,5 +1,7 @@
 use anyhow::Result;
+use log::{error, info, warn};
 use std::path::PathBuf;
+use std::time::Duration;
 
 use crate::model::{find_model, Engine};
 
@@ -21,10 +23,39 @@ pub fn port_file_path() -> PathBuf {
 }
 
 pub fn run_server() -> Result<()> {
-    let paths = find_model()?;
-    eprintln!("shitd: loading model...");
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_target(false)
+        .init();
+
+    const MAX_RETRIES: u32 = 10;
+    const INITIAL_BACKOFF: Duration = Duration::from_secs(2);
+
+    let paths = {
+        let mut attempt = 0;
+        loop {
+            match find_model() {
+                Ok(paths) => break paths,
+                Err(e) => {
+                    attempt += 1;
+                    if attempt > MAX_RETRIES {
+                        return Err(e.context("failed to find/download model after 10 retries"));
+                    }
+                    let delay = INITIAL_BACKOFF * 2u32.pow(attempt - 1).min(32);
+                    warn!(
+                        "model not available ({}), retrying in {}s ({}/{})",
+                        e,
+                        delay.as_secs(),
+                        attempt,
+                        MAX_RETRIES
+                    );
+                    std::thread::sleep(delay);
+                }
+            }
+        }
+    };
+    info!("loading model...");
     let mut engine = Engine::new(&paths.model_path, &paths.tokenizer_path)?;
-    eprintln!("shitd: model loaded");
+    info!("model loaded");
 
     let server = tiny_http::Server::http("127.0.0.1:0")
         .map_err(|e| anyhow::anyhow!("failed to bind: {}", e))?;
@@ -32,7 +63,7 @@ pub fn run_server() -> Result<()> {
 
     let port_file = port_file_path();
     std::fs::write(&port_file, port.to_string())?;
-    eprintln!("shitd: listening on 127.0.0.1:{}", port);
+    info!("listening on 127.0.0.1:{}", port);
 
     // Clean up port file on shutdown
     let _guard = PortFileGuard(port_file);
@@ -81,6 +112,7 @@ fn handle_infer(mut request: tiny_http::Request, engine: &mut Engine) {
     let fixes = match result {
         Ok(fixes) => fixes,
         Err(e) => {
+            error!("inference failed: {}", e);
             let resp = tiny_http::Response::from_string(
                 serde_json::json!({"error": e.to_string()}).to_string(),
             )
